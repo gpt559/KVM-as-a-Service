@@ -37,3 +37,19 @@ class ErrorResponse(BaseModel):
     status: str = "error"
     code: str
     detail: str
+
+class TestLog(BaseModel):
+    """
+    Log entry for a manual test step.
+    """
+    action: str
+    status: Literal["success", "failed", "skipped"]
+    detail: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class TestResponse(BaseModel):
+    """
+    Response model for the manual test run.
+    """
+    status: str = "completed"
+    logs: list[TestLog]

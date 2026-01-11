@@ -88,7 +88,8 @@ async function checkStatus() {
  * Update Configuration
  */
 async function updateConfig() {
-    if (!isConnected) return;
+    // Allow config update even if disconnected, to allow fixing connection params
+    // if (!isConnected) return;
 
     const protocol = protocolSelect.value;
     const baudrate = parseInt(baudrateSelect.value);
@@ -181,6 +182,49 @@ async function setBuzzer(state) {
     }
 }
 
+/**
+ * Run Diagnostics
+ */
+async function runDiagnostics() {
+    if (!isConnected) return;
+    
+    const btn = document.getElementById('btn-run-test');
+    const logsContainer = document.getElementById('test-logs');
+    const details = document.getElementById('details-logs');
+    
+    btn.setAttribute('aria-busy', 'true');
+    btn.disabled = true;
+    logsContainer.innerHTML = 'Running tests...';
+    details.open = true; // Auto open logs
+    
+    try {
+        const response = await fetch(`${API_BASE}/test/permutations`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) throw new Error('Test failed to start');
+        
+        const data = await response.json();
+        
+        let logHtml = '';
+        data.logs.forEach(log => {
+            const color = log.status === 'success' ? '#2ecc71' : (log.status === 'skipped' ? '#f1c40f' : '#e74c3c');
+            logHtml += `<div><span style="color:${color}">[${log.status.toUpperCase()}]</span> <strong>${log.action}</strong>: ${log.detail}</div>`;
+        });
+        
+        logsContainer.innerHTML = logHtml;
+        showToast("Diagnostics completed");
+        
+    } catch (error) {
+        console.error('Diagnostics failed:', error);
+        logsContainer.innerHTML = `<span style="color:red">Error: ${error.message}</span>`;
+        showToast("Diagnostics failed", true);
+    } finally {
+        btn.setAttribute('aria-busy', 'false');
+        btn.disabled = false;
+    }
+}
+
 // Helpers
 
 function updateStatusDot(element, isOnline) {
@@ -197,9 +241,9 @@ function enableControls(enabled) {
     portRadios.forEach(r => r.disabled = !enabled);
     document.getElementById('btn-buzzer-on').disabled = !enabled;
     document.getElementById('btn-buzzer-off').disabled = !enabled;
-    protocolSelect.disabled = !enabled;
-    baudrateSelect.disabled = !enabled;
-    terminatorSelect.disabled = !enabled;
+    // protocolSelect.disabled = !enabled;
+    // baudrateSelect.disabled = !enabled;
+    // terminatorSelect.disabled = !enabled;
 }
 
 function showToast(message, isError = false) {

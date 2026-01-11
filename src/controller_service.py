@@ -44,13 +44,15 @@ class ControllerService:
                 raise ValueError(f"Invalid baudrate: {baudrate}")
             
             with self._lock:
-                # Update baudrate and reconnect
-                self.serial_manager.baudrate = baudrate
-                if self.serial_manager.is_connected():
-                    logger.info(f"Updating baudrate to {baudrate}, reconnecting...")
-                    self.serial_manager.reconnect()
-                else:
-                    logger.info(f"Baudrate updated to {baudrate} (not currently connected)")
+                # Only reconnect if baudrate actually changes
+                if self.serial_manager.baudrate != baudrate:
+                    self.serial_manager.baudrate = baudrate
+                    if self.serial_manager.is_connected():
+                        logger.info(f"Updating baudrate to {baudrate}, reconnecting...")
+                        if not self.serial_manager.reconnect():
+                            raise Exception("Failed to reconnect after baudrate change")
+                    else:
+                        logger.info(f"Baudrate updated to {baudrate} (not currently connected)")
 
     def _get_commands(self):
         return PROTOCOL_MAP[self.current_protocol]

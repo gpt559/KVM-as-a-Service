@@ -3,15 +3,19 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
+import asyncio
 
 from src.serial_manager import SerialManager
 from src.controller_service import ControllerService
+from src.constants import Protocol
 from src.models import (
     SwitchRequest,
     BuzzerRequest,
     ConfigRequest,
     SuccessResponse,
-    ErrorResponse
+    ErrorResponse,
+    TestResponse,
+    TestLog
 )
 
 # Configure logging
@@ -222,6 +226,112 @@ async def get_status(
         pass
         
     return status_info
+
+@app.post(
+    "/api/v1/test/permutations",
+    response_model=TestResponse,
+    responses={
+        503: {"model": ErrorResponse}
+    }
+)
+async def run_test_permutations(
+    controller: ControllerService = Depends(get_controller)
+):
+    """
+    Manual Test: Run all permutations of configurations (Protocol, Baudrate, Terminator).
+    For each configuration, attempts to switch between Port 1 and Port 2.
+    """
+    logs = []
+
+    # Save original config to restore later
+    status = controller.check_status()
+    original_protocol = status.get('protocol')
+    original_baud = status.get('baudrate')
+    original_terminator = status.get('terminator')
+    
+    # Define permutations
+    protocols = [p.value for p in Protocol]
+    baudrates = [115200, 9600, 38400]
+    terminators = ["none", "cr", "crlf"]
+    
+    # Total permutations = 5 * 3 * 3 = 45.
+    # Each has 2 switches + delays. 45 * 1.5s approx = ~70 seconds.
+    # This is long, but acceptable for a manual "Run All" test.
+
+    try:
+        for baud in baudrates:
+            for protocol in protocols:
+                for terminator in terminators:
+                    
+                    config_desc = f"Baud={baud}, Proto={protocol}, Term={terminator}"
+                    
+                    # 1. Update Configuration
+                    try:
+                        controller.update_config(protocol=protocol, baudrate=baud, terminator=terminator)
+                    except Exception as e:
+                        logs.append(TestLog(
+                            action=f"Config: {config_desc}",
+                            status="failed",
+                            detail=f"Failed to set config: {str(e)}"
+                        ))
+                        continue
+
+                    # 2. Test Port 1
+                    try:
+                        controller.switch_port(1)
+                        logs.append(TestLog(
+                            action=f"Switch Port 1",
+                            status="success",
+                            detail=f"Sent (No HW Feedback) - {config_desc}"
+                        ))
+                    except Exception as e:
+                        logs.append(TestLog(
+                            action=f"Switch Port 1",
+                            status="failed",
+                            detail=f"{config_desc}: {str(e)}"
+                        ))
+                    
+                    await asyncio.sleep(0.2)
+
+                    # 3. Test Port 2
+                    try:
+                        controller.switch_port(2)
+                        logs.append(TestLog(
+                            action=f"Switch Port 2",
+                            status="success",
+                            detail=f"Sent (No HW Feedback) - {config_desc}"
+                        ))
+                    except Exception as e:
+                        logs.append(TestLog(
+                            action=f"Switch Port 2",
+                            status="failed",
+                            detail=f"{config_desc}: {str(e)}"
+                        ))
+
+                    await asyncio.sleep(0.2)
+                    
+    finally:
+        # Always attempt to restore original configuration
+        try:
+            if original_protocol and original_baud and original_terminator:
+                controller.update_config(
+                    protocol=original_protocol,
+                    baudrate=original_baud,
+                    terminator=original_terminator
+                )
+                logs.append(TestLog(
+                    action="Restore Config",
+                    status="success",
+                    detail="Restored original configuration"
+                ))
+        except Exception as e:
+            logs.append(TestLog(
+                action="Restore Config",
+                status="failed",
+                detail=f"Failed to restore: {str(e)}"
+            ))
+
+    return TestResponse(logs=logs)
 
 # Mount static files (Frontend UI)
 # Mount at root "/" but be careful not to override API routes. 

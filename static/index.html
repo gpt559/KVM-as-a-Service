@@ -165,6 +165,17 @@
             </div>
         </section>
 
+        <!-- Diagnostics -->
+        <section>
+            <h3>Diagnostics</h3>
+            <p>Run a comprehensive test of all Protocol, Baud Rate, and Terminator combinations, switching between Port 1 and 2.</p>
+            <button id="btn-run-test" onclick="runDiagnostics()">Run Configuration Scanner</button>
+            <details id="details-logs">
+                <summary>Test Logs</summary>
+                <pre id="test-logs" style="max-height: 300px; overflow-y: auto; background: var(--card-background-color); padding: 1rem; border-radius: var(--border-radius);">No logs yet.</pre>
+            </details>
+        </section>
+
     </main>
 
     <!-- Toast Notification -->
