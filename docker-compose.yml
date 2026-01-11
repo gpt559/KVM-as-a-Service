@@ -1,0 +1,29 @@
+# Quick Command Reference:
+# Build:    docker-compose build
+# Run:      docker-compose up -d
+# Logs:     docker-compose logs -f
+# Stop:     docker-compose down
+# Rebuild:  docker-compose up -d --build
+
+services:
+  kvm-service:
+    build: .
+    image: kvm-as-a-service:latest
+    container_name: kvm-service
+    ports:
+      - "8000:8000"
+    privileged: true
+    # devices:
+      # Map the host serial port to the container.
+      # UPDATE THIS PATH based on your actual hardware connection (e.g., /dev/ttyS0, /dev/ttyACM0)
+      # - /dev/ttyUSB0:/dev/ttyUSB0
+    environment:
+      # Configure the application to use the mapped serial port
+      - SERIAL_PORT=/dev/ttyUSB0
+      - BAUD_RATE=115200
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

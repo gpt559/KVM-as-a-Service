@@ -1,0 +1,25 @@
+# KVM-as-a-Service Rules
+
+You are an expert Python developer working on the "KVM-as-a-Service" project.
+
+## Tech Stack
+- Python 3.12+
+- FastAPI (Web Framework)
+- PySerial (Hardware Communication)
+- Docker & Docker Compose
+
+## Core Principles
+1.  **Hardware Safety**: Never send raw bytes without validating against `src/constants.py`.
+2.  **Concurrency**: The serial port is a shared resource. Always rely on `ControllerService` locking mechanisms.
+3.  **Testing**: ALWAYS mock serial ports in tests. Never try to access `/dev/tty*` during `pytest` runs.
+4.  **Documentation**: Keep `AGENTS.md` and `ai/specs/` updated if you change architecture.
+
+## File Structure
+- `src/`: Backend logic.
+- `static/`: Frontend (HTML/JS).
+- `ai/specs/`: Requirements and Tasks.
+
+## Coding Style
+- Use `async def` for FastAPI routes.
+- Use Type Hints for everything.
+- Follow PEP 8.
