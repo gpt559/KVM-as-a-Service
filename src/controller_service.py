@@ -15,7 +15,7 @@ class ControllerService:
         self.serial_manager = serial_manager
         self._lock = threading.Lock()
         self.current_protocol = Protocol.CONSUMER_A
-        self.current_terminator: Literal["none", "cr", "crlf"] = "none"
+        self.current_terminator: Literal["none", "cr", "lf", "crlf"] = "none"
         # Initialize serial with correct baudrate
         if self.serial_manager.baudrate != 115200:
              self.serial_manager.baudrate = 115200
@@ -34,7 +34,7 @@ class ControllerService:
                 raise ValueError(f"Invalid protocol: {protocol}")
 
         if terminator:
-            if terminator not in ["none", "cr", "crlf"]:
+            if terminator not in ["none", "cr", "lf", "crlf"]:
                 raise ValueError(f"Invalid terminator: {terminator}")
             self.current_terminator = terminator
             logger.info(f"Terminator updated to: {self.current_terminator}")
@@ -61,6 +61,8 @@ class ControllerService:
         """Appends the configured terminator to the command bytes."""
         if self.current_terminator == "cr":
             return command + b'\r'
+        elif self.current_terminator == "lf":
+            return command + b'\n'
         elif self.current_terminator == "crlf":
             return command + b'\r\n'
         return command

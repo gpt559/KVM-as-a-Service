@@ -252,7 +252,7 @@ async def run_test_permutations(
     # Define permutations
     protocols = [p.value for p in Protocol]
     baudrates = [115200, 9600, 38400]
-    terminators = ["none", "cr", "crlf"]
+    terminators = ["none", "cr", "lf", "crlf"]
     
     # Total permutations = 5 * 3 * 3 = 45.
     # Each has 2 switches + delays. 45 * 1.5s approx = ~70 seconds.

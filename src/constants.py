@@ -6,6 +6,7 @@ class Protocol(str, Enum):
     CONSUMER_B = "consumer_b"
     MATRIX = "matrix"
     DUAL_MONITOR_HEX = "dual_monitor_hex"
+    HDC202_X24 = "hdc202_x24"
 
 class EnterpriseCommands:
     """
@@ -87,6 +88,21 @@ class DualMonitorHexCommands:
     BUZZER_ON     = b'\xAA\xBB\x03\x02\x01\xEE'
     BUZZER_OFF    = b'\xAA\xBB\x03\x02\x00\xEE'
 
+class HDC202X24Commands:
+    """
+    Protocol for HDC202-X24 and compatible models.
+    Source: External_Button_Board_Command_Test_EN_CSV.csv
+    Format: 0xAA 0xBB [CMD] [DATA1] [DATA2] [CHECKSUM]
+    """
+    # Switch all outputs to specific PC
+    SWITCH_PORT_1 = b'\xAA\xBB\x03\x00\x00\x68'
+    SWITCH_PORT_2 = b'\xAA\xBB\x03\x00\x01\x69'
+    SWITCH_PORT_3 = b'\xAA\xBB\x03\x00\x02\x6A'
+    SWITCH_PORT_4 = b'\xAA\xBB\x03\x00\x03\x6B'
+
+    BUZZER_ON     = b'\xAA\xBB\x04\x00\x01\x6A'
+    BUZZER_OFF    = b'\xAA\xBB\x04\x00\x00\x69'
+
 # Map protocols to their command classes
 PROTOCOL_MAP = {
     Protocol.ENTERPRISE: EnterpriseCommands,
@@ -94,4 +110,5 @@ PROTOCOL_MAP = {
     Protocol.CONSUMER_B: ConsumerBCommands,
     Protocol.MATRIX: MatrixCommands,
     Protocol.DUAL_MONITOR_HEX: DualMonitorHexCommands,
+    Protocol.HDC202_X24: HDC202X24Commands,
 }

@@ -21,8 +21,9 @@ def controller(mock_serial_manager):
 def test_switch_port_valid(controller, mock_serial_manager):
     """Test switching to a valid port (1-8)."""
     controller.switch_port(1)
-    mock_serial_manager.write.assert_called_with(EnterpriseCommands.SWITCH_PORT_1)
+    mock_serial_manager.write.assert_called_with(ConsumerACommands.SWITCH_PORT_1) # Defaults to Consumer A
 
+    controller.update_config(protocol="enterprise")
     controller.switch_port(8)
     mock_serial_manager.write.assert_called_with(EnterpriseCommands.SWITCH_PORT_8)
 
@@ -46,6 +47,9 @@ def test_switch_port_invalid(controller, mock_serial_manager):
 
 def test_control_buzzer_valid(controller, mock_serial_manager):
     """Test controlling the buzzer with valid states."""
+    controller.update_config(protocol="enterprise") # Consumer A doesn't have buzzer? Check constants. 
+    # Consumer A keys: SWITCH_PORT_1..4. No buzzer.
+    
     controller.control_buzzer("on")
     mock_serial_manager.write.assert_called_with(EnterpriseCommands.BUZZER_ON)
 
@@ -131,3 +135,26 @@ def test_protocol_consumer_b(controller, mock_serial_manager):
     
     controller.switch_port(1)
     mock_serial_manager.write.assert_called_with(ConsumerBCommands.SWITCH_PORT_1)
+
+def test_terminator_lf(controller, mock_serial_manager):
+    """Test using LF terminator."""
+    controller.update_config(terminator="lf")
+    assert controller.current_terminator == "lf"
+    
+    # Send a command and check if \n is appended
+    controller.update_config(protocol="enterprise")
+    controller.switch_port(1)
+    
+    expected_command = EnterpriseCommands.SWITCH_PORT_1 + b'\n'
+    mock_serial_manager.write.assert_called_with(expected_command)
+
+def test_terminator_crlf(controller, mock_serial_manager):
+    """Test using CRLF terminator."""
+    controller.update_config(terminator="crlf")
+    assert controller.current_terminator == "crlf"
+    
+    controller.update_config(protocol="enterprise")
+    controller.switch_port(1)
+    
+    expected_command = EnterpriseCommands.SWITCH_PORT_1 + b'\r\n'
+    mock_serial_manager.write.assert_called_with(expected_command)

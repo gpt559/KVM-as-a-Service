@@ -20,7 +20,7 @@ class ConfigRequest(BaseModel):
     """
     protocol: Optional[Literal["enterprise", "consumer_a", "consumer_b", "matrix", "dual_monitor_hex"]] = None
     baudrate: Optional[Literal[9600, 38400, 115200]] = None
-    terminator: Optional[Literal["none", "cr", "crlf"]] = None
+    terminator: Optional[Literal["none", "cr", "lf", "crlf"]] = None
 
 class SuccessResponse(BaseModel):
     """
