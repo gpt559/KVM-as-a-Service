@@ -60,3 +60,12 @@ def test_feature_toggle(client, mock_controller):
     assert response.status_code == 200
     assert response.json()["message"] == "Auto-detect disabled"
     mock_controller.set_feature_state.assert_called_once_with("AUTODETECT", False, "Auto-detect")
+
+def test_send_query(client, mock_controller):
+    mock_controller.send_query.return_value = "AA BB 84 01 00 EA"
+    
+    response = client.post("/api/v1/query", json={"command": "buzzer"})
+    
+    assert response.status_code == 200
+    assert response.json()["response_hex"] == "AA BB 84 01 00 EA"
+    mock_controller.send_query.assert_called_once_with("buzzer")

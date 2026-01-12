@@ -3,7 +3,7 @@
 ## 🤖 Project Context for AI Agents
 
 **Project Name:** KVM-as-a-Service  
-**Description:** A FastAPI-based microservice that exposes a REST API and Web UI to control TESmart KVM switches via a serial connection (USB/DB9). It allows for switching input ports and controlling buzzer settings remotely.
+**Description:** A FastAPI-based microservice that exposes a REST API and Web UI to control TESmart KVM switches via a serial connection (USB/DB9). It is optimized for deployment on Linux environments, specifically Raspberry Pi, allowing for switching input ports and controlling buzzer settings remotely.
 
 ---
 
@@ -69,10 +69,10 @@ The system follows a layered architecture:
 
 ## 🚀 Deployment
 
-- **Docker**: The primary deployment method.
+- **Docker**: The primary deployment method. Supports `linux/amd64` and `linux/arm64` (Raspberry Pi).
 - **Build**: `docker-compose build`
 - **Run**: `docker-compose up -d`
-- **Serial Port**: The serial port path (e.g., `/dev/ttyUSB0`) is passed via `docker-compose.yml` environment variables and device mapping.
+- **Serial Port**: The serial port path (e.g., `/dev/ttyUSB0`) is passed via `docker-compose.yml` environment variables. When running on Raspberry Pi, ensure the correct USB or GPIO serial device is targeted.
 
 ---
 

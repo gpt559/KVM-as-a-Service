@@ -1,18 +1,20 @@
 # KVM-as-a-Service
 
-A modern, web-based controller for TESmart KVM Switches. This project exposes a REST API and a web interface to control input switching and buzzer settings over a serial connection.
+A modern, web-based controller for TESmart KVM Switches, designed to run on a **Raspberry Pi**. This project exposes a REST API and a web interface to control input switching and buzzer settings over a serial connection.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-*   **Docker & Docker Compose** (Recommended)
-*   OR Python 3.12+
-*   A TESmart KVM Switch connected via Serial (USB or DB9)
+*   **Hardware**: Raspberry Pi (running Raspberry Pi OS) or Linux Desktop/Server.
+*   **Software**: Docker & Docker Compose.
+*   **KVM**: A TESmart KVM Switch connected via Serial (USB-to-Serial adapter recommended).
 
 ### Hardware Setup
 
-Refer to [SETUP_USB.md](SETUP_USB.md) for detailed instructions on identifying and configuring your serial device.
+1.  Connect your USB-to-Serial adapter to the Raspberry Pi.
+2.  Connect the DB9 end to the RS232 port on the KVM.
+3.  Identify the port (usually `/dev/ttyUSB0`).
 
 ### Installation & Running
 
@@ -30,15 +32,18 @@ Refer to [SETUP_USB.md](SETUP_USB.md) for detailed instructions on identifying a
     docker-compose up -d --build
     ```
 
-    The service will be available at `http://localhost:8000`.
+    The service will be available at `http://<your-pi-ip-address>:8000`.
 
 ## 📱 Network Access (Control from Phone/Tablet)
 
-Want to control your KVM from your phone?
+Since the service runs in Docker on your Raspberry Pi, it is automatically accessible on your local network.
 
+1.  Find your Pi's IP address: `hostname -I`
+2.  Open a browser on your phone/tablet: `http://<pi-ip-address>:8000`
+
+### Windows (WSL 2) Users
+If you are developing on Windows using WSL 2, you may need to use our helper script to expose the port to your LAN.
 👉 **[Read the Network Access Guide](EXPOSE_NETWORK.md)**
-
-If you are running on **Windows (WSL 2)**, we provide a 1-click script to expose the service to your local network.
 
 ## 🔌 API Usage
 
@@ -59,3 +64,7 @@ The service provides a Swagger UI for interactive documentation and testing.
 *   `static/`: Frontend web interface.
 *   `scripts/`: Helper scripts for deployment/networking.
 *   `ai/specs/`: Project specifications and design documents.
+
+## 📄 License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.

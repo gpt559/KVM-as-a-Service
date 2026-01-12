@@ -44,6 +44,30 @@ class NetworkControlRequest(BaseModel):
 class FeatureToggleRequest(BaseModel):
     enabled: bool
 
+class QueryRequest(BaseModel):
+    command: Literal[
+        "monitor_count",
+        "km_focus",
+        "mapping",
+        "buzzer",
+        "light",
+        "usb_focus",
+        "usb_compat",
+        "network",
+        "mouse_middle",
+        "fan",
+        "audio_follow",
+        "audio_channel",
+        "autodetect",
+        "autoscan"
+    ]
+
+class QueryResponse(BaseModel):
+    status: str = "success"
+    command: str
+    response_hex: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
 class SuccessResponse(BaseModel):
     """
     Standard success response model.

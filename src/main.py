@@ -19,6 +19,8 @@ from src.models import (
     UsbFocusRequest,
     NetworkControlRequest,
     FeatureToggleRequest,
+    QueryRequest,
+    QueryResponse,
     SuccessResponse,
     ErrorResponse,
     TestResponse,
@@ -312,6 +314,16 @@ async def set_mouse_middle(request: FeatureToggleRequest, controller: Controller
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
 
+@app.post("/api/v1/query", response_model=QueryResponse)
+async def send_query(request: QueryRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        response_hex = controller.send_query(request.command)
+        return QueryResponse(command=request.command, response_hex=response_hex)
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
 @app.get(
     "/api/v1/status",
     responses={
@@ -333,6 +345,32 @@ async def get_status(
         pass
         
     return status_info
+
+@app.post(
+    "/api/v1/test/queries",
+    response_model=TestResponse,
+    responses={
+        503: {"model": ErrorResponse}
+    }
+)
+async def run_all_queries(
+    controller: ControllerService = Depends(get_controller)
+):
+    """
+    Run all available query commands for the current protocol and return results.
+    """
+    try:
+        results = controller.run_all_queries()
+        logs = []
+        for res in results:
+            logs.append(TestLog(
+                action=f"Query: {res['command']}",
+                status="success" if res['status'] == "success" else "failed",
+                detail=res['response']
+            ))
+        return TestResponse(logs=logs)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 @app.post(
     "/api/v1/test/permutations",

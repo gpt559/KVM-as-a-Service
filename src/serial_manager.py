@@ -77,3 +77,26 @@ class SerialManager:
     def is_connected(self) -> bool:
         """Checks if the serial connection is currently open."""
         return self.connection is not None and self.connection.is_open
+
+    def reset_input_buffer(self) -> None:
+        """Clears the input buffer."""
+        if self.connection and self.connection.is_open:
+            self.connection.reset_input_buffer()
+
+    def read(self, size: int = 64) -> bytes:
+        """
+        Reads up to size bytes from serial port.
+        Uses the configured timeout.
+        """
+        if not self.connection or not self.connection.is_open:
+             raise serial.SerialException("Serial port is not open")
+        
+        try:
+            data = self.connection.read(size)
+            if data:
+                logger.debug(f"Read from serial: {data.hex(' ').upper()}")
+            return data
+        except serial.SerialException as e:
+            logger.error(f"Failed to read from serial port: {e}")
+            self.disconnect()
+            raise

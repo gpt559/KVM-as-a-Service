@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 from src.controller_service import ControllerService
 from src.serial_manager import SerialManager
-from src.constants import EnterpriseCommands, ConsumerACommands, ConsumerBCommands, Protocol
+from src.constants import EnterpriseCommands, ConsumerACommands, ConsumerBCommands, Protocol, HDC202X24Commands
 
 @pytest.fixture
 def mock_serial_manager():
@@ -11,6 +11,9 @@ def mock_serial_manager():
     manager.is_connected.return_value = True
     manager.port = "/dev/ttyUSB0" # Mock the port attribute
     manager.baudrate = 9600
+    # Mock new methods
+    manager.read.return_value = b'' 
+    manager.reset_input_buffer = MagicMock()
     return manager
 
 @pytest.fixture
@@ -158,3 +161,40 @@ def test_terminator_crlf(controller, mock_serial_manager):
     
     expected_command = EnterpriseCommands.SWITCH_PORT_1 + b'\r\n'
     mock_serial_manager.write.assert_called_with(expected_command)
+
+def test_protocol_hdc202_x24(controller, mock_serial_manager):
+    """Test switching ports using HDC202-X24 protocol."""
+    controller.update_config(protocol="hdc202_x24")
+    
+    controller.switch_port(1)
+    mock_serial_manager.write.assert_called_with(HDC202X24Commands.SWITCH_PORT_1)
+    
+    controller.control_buzzer("on")
+    mock_serial_manager.write.assert_called_with(HDC202X24Commands.BUZZER_ON)
+
+def test_send_query(controller, mock_serial_manager):
+    """Test sending a query and reading a response."""
+    controller.update_config(protocol="hdc202_x24")
+    
+    # Mock read response
+    mock_serial_manager.read.return_value = b'\xAA\xBB\x84\x01\x00\xEA'
+    
+    response = controller.send_query("buzzer")
+    
+    assert response == "AA BB 84 01 00 EA"
+    
+    # Check that reset_input_buffer was called
+    mock_serial_manager.reset_input_buffer.assert_called()
+    
+    # Check write called with correct query command
+    mock_serial_manager.write.assert_called_with(HDC202X24Commands.QUERY_BUZZER)
+    
+    # Check read called
+    mock_serial_manager.read.assert_called()
+
+def test_send_query_unsupported(controller):
+    """Test sending an unsupported query."""
+    controller.update_config(protocol="enterprise")
+    
+    with pytest.raises(NotImplementedError):
+        controller.send_query("buzzer")

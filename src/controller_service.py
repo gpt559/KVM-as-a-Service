@@ -14,7 +14,7 @@ class ControllerService:
     def __init__(self, serial_manager: SerialManager):
         self.serial_manager = serial_manager
         self._lock = threading.Lock()
-        self.current_protocol = Protocol.CONSUMER_A
+        self.current_protocol = Protocol.HDC202_X24
         self.current_terminator: Literal["none", "cr", "lf", "crlf"] = "none"
         # Initialize serial with correct baudrate
         if self.serial_manager.baudrate != 115200:
@@ -163,6 +163,61 @@ class ControllerService:
         suffix = "ON" if enabled else "OFF"
         key = f"{feature_prefix}_{suffix}"
         self._execute_simple_command(key, f"{description} {'On' if enabled else 'Off'}")
+
+    def send_query(self, query_name: str) -> str:
+        """
+        Sends a query command and returns the response as a hex string.
+        """
+        key = f"QUERY_{query_name.upper()}"
+        commands = self._get_commands()
+        
+        if not hasattr(commands, key):
+             raise NotImplementedError(f"Query {query_name} not supported by protocol {self.current_protocol}")
+        
+        command_bytes = getattr(commands, key)
+        
+        with self._lock:
+            # Flush input buffer before sending to avoid reading stale data
+            self.serial_manager.reset_input_buffer()
+                
+            final_command = self._apply_terminator(command_bytes)
+            logger.info(f"Sending query {query_name} using {self.current_protocol}")
+            self.serial_manager.write(final_command)
+            
+            # Read response
+            response = self.serial_manager.read(128) # Read up to 128 bytes
+            return response.hex(' ').upper()
+
+    def run_all_queries(self) -> list[dict]:
+        """
+        Runs all available query commands for the current protocol.
+        
+        Returns:
+            list[dict]: List of results with command name and response.
+        """
+        commands = self._get_commands()
+        query_results = []
+        
+        # Find all attributes starting with QUERY_
+        query_keys = [attr for attr in dir(commands) if attr.startswith("QUERY_")]
+        
+        for key in query_keys:
+            query_name = key.replace("QUERY_", "").lower()
+            try:
+                response = self.send_query(query_name)
+                query_results.append({
+                    "command": query_name,
+                    "response": response,
+                    "status": "success"
+                })
+            except Exception as e:
+                query_results.append({
+                    "command": query_name,
+                    "response": str(e),
+                    "status": "error"
+                })
+                
+        return query_results
 
     def check_status(self) -> dict:
         """

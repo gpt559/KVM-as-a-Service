@@ -162,6 +162,22 @@ class HDC202X24Commands:
     NET_PC4_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
     NET_PC4_OFF = b'\xAA\xBB\x09\x00\x07\x75'
 
+    # --- Queries ---
+    QUERY_MONITOR_COUNT = b'\xAA\xBB\x81\x00\x00\xE6'
+    QUERY_KM_FOCUS      = b'\xAA\xBB\x82\x00\xFF\xE6'
+    QUERY_MAPPING       = b'\xAA\xBB\x83\x00\xFF\xE7'
+    QUERY_BUZZER        = b'\xAA\xBB\x84\x00\xFF\xE8'
+    QUERY_LIGHT         = b'\xAA\xBB\x85\x00\xFF\xE9'
+    QUERY_USB_FOCUS     = b'\xAA\xBB\x87\x00\xFF\xEB'
+    QUERY_USB_COMPAT    = b'\xAA\xBB\x88\x00\xFF\xEC'
+    QUERY_NETWORK       = b'\xAA\xBB\x89\x00\xFF\xED'
+    QUERY_MOUSE_MIDDLE  = b'\xAA\xBB\x8A\x00\xFF\xEE'
+    QUERY_FAN           = b'\xAA\xBB\x8B\x00\xFF\xEF'
+    QUERY_AUDIO_FOLLOW  = b'\xAA\xBB\x8C\x00\xFF\xF0'
+    QUERY_AUDIO_CHANNEL = b'\xAA\xBB\x8D\x00\xFF\xF1'
+    QUERY_AUTODETECT    = b'\xAA\xBB\x8E\x00\xFF\xF2'
+    QUERY_AUTOSCAN      = b'\xAA\xBB\x8F\x00\xFF\xF3'
+
 # Map protocols to their command classes
 PROTOCOL_MAP = {
     Protocol.ENTERPRISE: EnterpriseCommands,

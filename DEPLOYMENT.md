@@ -2,23 +2,30 @@
 
 ## Prerequisites
 
-*   Docker installed on the host machine.
-*   Docker Compose installed on the host machine.
-*   The KVM hardware connected via serial (USB-to-Serial or direct DB9).
+*   **Hardware**: Raspberry Pi (3B, 4, or 5 recommended) or any Linux server.
+*   **Software**: Docker and Docker Compose installed.
+    *   *Raspberry Pi OS*: `curl -sSL https://get.docker.com | sh`
+*   **Connection**: The KVM hardware connected via serial (USB-to-Serial adapter recommended).
 
 ## Configuration
 
 1.  **Identify Serial Port**:
-    Run `ls /dev/tty*` to find your serial device (e.g., `/dev/ttyUSB0`, `/dev/ttyACM0`, or `/dev/ttyS0`).
+    On your Raspberry Pi or Linux host, run:
+    ```bash
+    ls /dev/ttyUSB*
+    ```
+    Common results: `/dev/ttyUSB0` or `/dev/ttyACM0`.
 
 2.  **Update `docker-compose.yml`**:
-    Edit the `devices` and `environment` sections in `docker-compose.yml` to match your hardware path.
+    Edit the `environment` section in `docker-compose.yml` to match your hardware path.
+
+    *Note: The default configuration uses `privileged: true` to access hardware. For better security, uncomment the `devices` section and map the specific port.*
 
     ```yaml
-    devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0  # Host Path : Container Path
+    # devices:
+    #   - /dev/ttyUSB0:/dev/ttyUSB0  # Host Path : Container Path
     environment:
-      - SERIAL_PORT=/dev/ttyUSB0   # Must match Container Path
+      - SERIAL_PORT=/dev/ttyUSB0     # Must match the device path
     ```
 
 ## Build and Run

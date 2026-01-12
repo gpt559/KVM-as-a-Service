@@ -15,7 +15,7 @@ const terminatorSelect = document.getElementById('terminator-select');
 // State
 let isConnected = false;
 let currentConfig = {
-    protocol: 'consumer_a',
+    protocol: 'hdc202_x24',
     baudrate: 115200,
     terminator: 'none'
 };
@@ -179,6 +179,75 @@ async function setBuzzer(state) {
 
     } catch (error) {
         showToast(`Error: ${error.message}`, true);
+    }
+}
+
+/**
+ * Run Query
+ */
+async function runQuery() {
+    if (!isConnected) return;
+    const command = document.getElementById('query-select').value;
+    const responseEl = document.getElementById('query-response');
+    responseEl.textContent = "Querying...";
+    
+    try {
+        const response = await fetch(`${API_BASE}/query`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ command: command })
+        });
+        
+        if (!response.ok) {
+            const err = await response.json();
+             throw new Error(err.detail || 'Query failed');
+        }
+        
+        const data = await response.json();
+        const timestamp = new Date(data.timestamp).toLocaleTimeString();
+        responseEl.textContent = `[${timestamp}] ${data.response_hex || 'No Data'}`;
+        showToast("Query successful");
+        
+    } catch (error) {
+         responseEl.textContent = `Error: ${error.message}`;
+         showToast("Query failed", true);
+    }
+}
+
+/**
+ * Run All Queries (Batch)
+ */
+async function runAllQueries() {
+    if (!isConnected) return;
+    
+    const resultsContainer = document.getElementById('batch-query-results');
+    const logsContainer = document.getElementById('batch-query-logs');
+    
+    resultsContainer.style.display = 'block';
+    logsContainer.innerHTML = 'Running all queries...';
+    
+    try {
+        const response = await fetch(`${API_BASE}/test/queries`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) throw new Error('Failed to run batch queries');
+        
+        const data = await response.json();
+        
+        let logHtml = '';
+        data.logs.forEach(log => {
+             const color = log.status === 'success' ? '#2ecc71' : '#e74c3c';
+             logHtml += `<div><span style="color:${color}">[${log.status.toUpperCase()}]</span> <strong>${log.action}</strong>: ${log.detail}</div>`;
+        });
+        
+        logsContainer.innerHTML = logHtml;
+        showToast("Batch queries completed");
+        
+    } catch (error) {
+        console.error('Batch query failed:', error);
+        logsContainer.innerHTML = `<span style="color:red">Error: ${error.message}</span>`;
+        showToast("Batch query failed", true);
     }
 }
 
