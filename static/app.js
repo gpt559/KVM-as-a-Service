@@ -237,8 +237,18 @@ async function runAllQueries() {
         
         let logHtml = '';
         data.logs.forEach(log => {
-             const color = log.status === 'success' ? '#2ecc71' : '#e74c3c';
-             logHtml += `<div><span style="color:${color}">[${log.status.toUpperCase()}]</span> <strong>${log.action}</strong>: ${log.detail}</div>`;
+             let statusText = log.status.toUpperCase();
+             let color = log.status === 'success' ? '#2ecc71' : '#e74c3c';
+             let detailText = log.detail;
+
+             // Check for empty response
+             if (log.status === 'success' && (!log.detail || log.detail.trim() === '')) {
+                 statusText = 'NO RESPONSE';
+                 color = '#f1c40f'; // Yellow
+                 detailText = 'No data returned';
+             }
+
+             logHtml += `<div><span style="color:${color}">[${statusText}]</span> <strong>${log.action}</strong>: ${detailText}</div>`;
         });
         
         logsContainer.innerHTML = logHtml;
