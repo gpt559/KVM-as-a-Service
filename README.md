@@ -47,6 +47,11 @@ The service provides a Swagger UI for interactive documentation and testing.
 *   **Docs:** `http://localhost:8000/docs`
 *   **Switch Port:** `POST /api/v1/switch` -> `{"port": 1}`
 *   **Buzzer:** `POST /api/v1/buzzer` -> `{"state": "off"}`
+*   **Light Control:** `POST /api/v1/light` -> `{"mode": "flow"}`
+*   **Fan Control:** `POST /api/v1/fan` -> `{"mode": "auto"}`
+*   **Audio Source:** `POST /api/v1/audio/source` -> `{"port": 1}`
+*   **Network Power:** `POST /api/v1/network` -> `{"port": 1, "enabled": true}`
+*   **USB Focus:** `POST /api/v1/usb/focus` -> `{"target": "pc1"}`
 
 ## 📁 Project Structure
 

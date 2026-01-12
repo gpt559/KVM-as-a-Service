@@ -12,6 +12,13 @@ from src.models import (
     SwitchRequest,
     BuzzerRequest,
     ConfigRequest,
+    LightModeRequest,
+    FanModeRequest,
+    AudioSourceRequest,
+    AudioFollowRequest,
+    UsbFocusRequest,
+    NetworkControlRequest,
+    FeatureToggleRequest,
     SuccessResponse,
     ErrorResponse,
     TestResponse,
@@ -204,6 +211,106 @@ async def control_buzzer(
             status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Hardware communication failed: {str(e)}"
         )
+
+@app.post("/api/v1/light", response_model=SuccessResponse)
+async def set_light_mode(request: LightModeRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        controller.set_light_mode(request.mode)
+        return SuccessResponse(message=f"Light mode set to {request.mode}")
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+@app.post("/api/v1/fan", response_model=SuccessResponse)
+async def set_fan_mode(request: FanModeRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        controller.set_fan_mode(request.mode)
+        return SuccessResponse(message=f"Fan mode set to {request.mode}")
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+@app.post("/api/v1/audio/source", response_model=SuccessResponse)
+async def set_audio_source(request: AudioSourceRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        controller.set_audio_source(request.port)
+        return SuccessResponse(message=f"Audio source set to PC{request.port}")
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+@app.post("/api/v1/audio/follow", response_model=SuccessResponse)
+async def set_audio_follow(request: AudioFollowRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        controller.set_audio_follow(request.enabled)
+        return SuccessResponse(message=f"Audio follow {'enabled' if request.enabled else 'disabled'}")
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+@app.post("/api/v1/network", response_model=SuccessResponse)
+async def set_network_power(request: NetworkControlRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        controller.set_network_power(request.port, request.enabled)
+        return SuccessResponse(message=f"Network for PC{request.port} {'enabled' if request.enabled else 'disabled'}")
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+@app.post("/api/v1/usb/focus", response_model=SuccessResponse)
+async def set_usb_focus(request: UsbFocusRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        controller.set_usb_focus(request.target)
+        return SuccessResponse(message=f"USB focus switched to {request.target}")
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+@app.post("/api/v1/system/autodetect", response_model=SuccessResponse)
+async def set_autodetect(request: FeatureToggleRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        controller.set_feature_state("AUTODETECT", request.enabled, "Auto-detect")
+        return SuccessResponse(message=f"Auto-detect {'enabled' if request.enabled else 'disabled'}")
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+@app.post("/api/v1/system/autoscan", response_model=SuccessResponse)
+async def set_autoscan(request: FeatureToggleRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        controller.set_feature_state("AUTOSCAN", request.enabled, "Auto-scan")
+        return SuccessResponse(message=f"Auto-scan {'enabled' if request.enabled else 'disabled'}")
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+@app.post("/api/v1/usb/compatibility", response_model=SuccessResponse)
+async def set_usb_compatibility(request: FeatureToggleRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        controller.set_feature_state("USB_COMPAT", request.enabled, "USB Compatibility Mode")
+        return SuccessResponse(message=f"USB Compatibility Mode {'enabled' if request.enabled else 'disabled'}")
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+@app.post("/api/v1/usb/mouse-middle", response_model=SuccessResponse)
+async def set_mouse_middle(request: FeatureToggleRequest, controller: ControllerService = Depends(get_controller)):
+    try:
+        controller.set_feature_state("MOUSE_MIDDLE", request.enabled, "Mouse Middle Button")
+        return SuccessResponse(message=f"Mouse Middle Button {'enabled' if request.enabled else 'disabled'}")
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 @app.get(
     "/api/v1/status",

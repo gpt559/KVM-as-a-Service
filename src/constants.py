@@ -94,14 +94,73 @@ class HDC202X24Commands:
     Source: External_Button_Board_Command_Test_EN_CSV.csv
     Format: 0xAA 0xBB [CMD] [DATA1] [DATA2] [CHECKSUM]
     """
+    # --- Switching ---
     # Switch all outputs to specific PC
     SWITCH_PORT_1 = b'\xAA\xBB\x03\x00\x00\x68'
     SWITCH_PORT_2 = b'\xAA\xBB\x03\x00\x01\x69'
     SWITCH_PORT_3 = b'\xAA\xBB\x03\x00\x02\x6A'
     SWITCH_PORT_4 = b'\xAA\xBB\x03\x00\x03\x6B'
+    SWITCH_ALL_NEXT = b'\xAA\xBB\x03\xFF\x00\x67'
 
+    # Switch Specific Outputs (Output 1)
+    SWITCH_OUT1_PC1 = b'\xAA\xBB\x03\x01\x00\x69'
+    SWITCH_OUT1_PC2 = b'\xAA\xBB\x03\x01\x01\x6A'
+    # Switch Specific Outputs (Output 2)
+    SWITCH_OUT2_PC1 = b'\xAA\xBB\x03\x02\x00\x6A'
+    SWITCH_OUT2_PC2 = b'\xAA\xBB\x03\x02\x01\x6B'
+
+    # --- Audio/Video ---
     BUZZER_ON     = b'\xAA\xBB\x04\x00\x01\x6A'
     BUZZER_OFF    = b'\xAA\xBB\x04\x00\x00\x69'
+
+    LIGHT_OFF       = b'\xAA\xBB\x05\x02\x00\x6C'
+    LIGHT_BASIC     = b'\xAA\xBB\x05\x02\x01\x6D'
+    LIGHT_FLOW      = b'\xAA\xBB\x05\x02\x02\x6E'
+    LIGHT_BREATHING = b'\xAA\xBB\x05\x02\x03\x6F'
+
+    AUDIO_FOLLOW_ON  = b'\xAA\xBB\x0C\x00\x01\x72'
+    AUDIO_FOLLOW_OFF = b'\xAA\xBB\x0C\x00\x00\x71'
+    
+    AUDIO_PC1  = b'\xAA\xBB\x0D\x00\x00\x72'
+    AUDIO_PC2  = b'\xAA\xBB\x0D\x00\x01\x73'
+    AUDIO_PC3  = b'\xAA\xBB\x0D\x00\x02\x74'
+    AUDIO_PC4  = b'\xAA\xBB\x0D\x00\x03\x75'
+    AUDIO_NEXT = b'\xAA\xBB\x0D\xFF\x00\x71'
+
+    # --- System & Hardware ---
+    FAN_OFF  = b'\xAA\xBB\x0B\x00\x00\x70'
+    FAN_AUTO = b'\xAA\xBB\x0B\x00\x01\x71'
+    FAN_LOW  = b'\xAA\xBB\x0B\x00\x02\x72'
+    FAN_HIGH = b'\xAA\xBB\x0B\x00\x03\x73'
+
+    AUTODETECT_ON  = b'\xAA\xBB\x0E\x00\x01\x74'
+    AUTODETECT_OFF = b'\xAA\xBB\x0E\x00\x00\x73'
+    
+    AUTOSCAN_ON  = b'\xAA\xBB\x0F\x00\x01\x75'
+    AUTOSCAN_OFF = b'\xAA\xBB\x0F\x00\x00\x74'
+
+    # --- USB & Input ---
+    USB_FOCUS_PC1  = b'\xAA\xBB\x07\x00\x00\x6C'
+    USB_FOCUS_PC2  = b'\xAA\xBB\x07\x00\x01\x6D'
+    USB_FOCUS_NEXT = b'\xAA\xBB\x07\xFF\x00\x6B'
+
+    USB_COMPAT_ON  = b'\xAA\xBB\x08\x00\x01\x6E'
+    USB_COMPAT_OFF = b'\xAA\xBB\x08\x00\x00\x6D'
+
+    MOUSE_MIDDLE_ON  = b'\xAA\xBB\x0A\x00\x01\x70'
+    MOUSE_MIDDLE_OFF = b'\xAA\xBB\x0A\x00\x00\x6F'
+
+    # --- Network Control ---
+    # Note: ON commands seem to be shared (0F) for all PCs in CSV, likely "All On"
+    # OFF commands are distinct.
+    NET_PC1_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
+    NET_PC1_OFF = b'\xAA\xBB\x09\x00\x0E\x7C'
+    NET_PC2_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
+    NET_PC2_OFF = b'\xAA\xBB\x09\x00\x0D\x7B'
+    NET_PC3_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
+    NET_PC3_OFF = b'\xAA\xBB\x09\x00\x0B\x79'
+    NET_PC4_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
+    NET_PC4_OFF = b'\xAA\xBB\x09\x00\x07\x75'
 
 # Map protocols to their command classes
 PROTOCOL_MAP = {

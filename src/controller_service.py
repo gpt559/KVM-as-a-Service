@@ -119,6 +119,51 @@ class ControllerService:
             logger.info(f"Turning buzzer {state} using {self.current_protocol} (Terminator: {self.current_terminator})")
             self.serial_manager.write(final_command)
 
+    def _execute_simple_command(self, command_key: str, description: str) -> None:
+        """Helper to look up and execute a command by key."""
+        commands = self._get_commands()
+        if not hasattr(commands, command_key):
+             raise NotImplementedError(f"{description} not supported by protocol {self.current_protocol}")
+        
+        command_bytes = getattr(commands, command_key)
+        with self._lock:
+            final_command = self._apply_terminator(command_bytes)
+            logger.info(f"Executing {description} ({command_key}) using {self.current_protocol}")
+            self.serial_manager.write(final_command)
+
+    def set_light_mode(self, mode: str) -> None:
+        key = f"LIGHT_{mode.upper()}"
+        self._execute_simple_command(key, f"Light Mode {mode}")
+
+    def set_fan_mode(self, mode: str) -> None:
+        key = f"FAN_{mode.upper()}"
+        self._execute_simple_command(key, f"Fan Mode {mode}")
+
+    def set_audio_source(self, port: int) -> None:
+        key = f"AUDIO_PC{port}"
+        self._execute_simple_command(key, f"Audio Source PC{port}")
+
+    def set_audio_follow(self, enabled: bool) -> None:
+        key = "AUDIO_FOLLOW_ON" if enabled else "AUDIO_FOLLOW_OFF"
+        self._execute_simple_command(key, f"Audio Follow {'On' if enabled else 'Off'}")
+
+    def set_network_power(self, port: int, enabled: bool) -> None:
+        # Note: Current constants: NET_PCx_ON, NET_PCx_OFF
+        state = "ON" if enabled else "OFF"
+        key = f"NET_PC{port}_{state}"
+        self._execute_simple_command(key, f"Network PC{port} {state}")
+
+    def set_usb_focus(self, target: str) -> None:
+        # target: pc1, pc2, next
+        key = f"USB_FOCUS_{target.upper()}"
+        self._execute_simple_command(key, f"USB Focus {target}")
+
+    def set_feature_state(self, feature_prefix: str, enabled: bool, description: str) -> None:
+        # Generic for toggle features like USB_COMPAT, MOUSE_MIDDLE, AUTODETECT, AUTOSCAN
+        suffix = "ON" if enabled else "OFF"
+        key = f"{feature_prefix}_{suffix}"
+        self._execute_simple_command(key, f"{description} {'On' if enabled else 'Off'}")
+
     def check_status(self) -> dict:
         """
         Checks the service health and connection status.

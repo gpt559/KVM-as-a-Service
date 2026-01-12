@@ -18,9 +18,31 @@ class ConfigRequest(BaseModel):
     """
     Request model for updating KVM configuration.
     """
-    protocol: Optional[Literal["enterprise", "consumer_a", "consumer_b", "matrix", "dual_monitor_hex"]] = None
+    protocol: Optional[Literal["enterprise", "consumer_a", "consumer_b", "matrix", "dual_monitor_hex", "hdc202_x24"]] = None
     baudrate: Optional[Literal[9600, 38400, 115200]] = None
     terminator: Optional[Literal["none", "cr", "lf", "crlf"]] = None
+
+class LightModeRequest(BaseModel):
+    mode: Literal["off", "basic", "flow", "breathing"]
+
+class FanModeRequest(BaseModel):
+    mode: Literal["off", "auto", "low", "high"]
+
+class AudioSourceRequest(BaseModel):
+    port: int = Field(..., ge=1, le=4, description="Audio Source Port (1-4)")
+
+class AudioFollowRequest(BaseModel):
+    enabled: bool
+
+class UsbFocusRequest(BaseModel):
+    target: Literal["pc1", "pc2", "next"]
+
+class NetworkControlRequest(BaseModel):
+    port: int = Field(..., ge=1, le=4, description="Network Port (1-4)")
+    enabled: bool
+
+class FeatureToggleRequest(BaseModel):
+    enabled: bool
 
 class SuccessResponse(BaseModel):
     """
