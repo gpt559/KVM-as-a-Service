@@ -29,7 +29,7 @@ A modern, web-based controller for TESmart KVM Switches, designed to run on a **
 
 3.  **Run with Docker:**
     ```bash
-    docker-compose up -d --build
+    docker compose up -d --build
     ```
 
     The service will be available at `http://<your-pi-ip-address>:8000`.

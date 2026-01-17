@@ -32,12 +32,12 @@
 
 1.  **Build the Image**:
     ```bash
-    docker-compose build
+    docker compose build
     ```
 
 2.  **Run the Container**:
     ```bash
-    docker-compose up -d
+    docker compose up -d
     ```
     The `-d` flag runs the container in detached mode (background).
 
@@ -48,7 +48,7 @@
     ```
     View logs:
     ```bash
-    docker-compose logs -f
+    docker compose logs -f
     ```
 
 ## Usage
@@ -64,5 +64,5 @@ Once running, the API will be available at `http://localhost:8000`.
 To deploy a new version:
 
 1.  Pull the latest code.
-2.  Rebuild: `docker-compose build`
-3.  Restart: `docker-compose up -d`
+2.  Rebuild: `docker compose build`
+3.  Restart: `docker compose up -d`

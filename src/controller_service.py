@@ -1,5 +1,6 @@
 import threading
 import logging
+import time
 from typing import Literal, Optional
 from src.serial_manager import SerialManager
 from src.constants import Protocol, PROTOCOL_MAP
@@ -17,10 +18,14 @@ class ControllerService:
         self.current_protocol = Protocol.HDC202_X24
         self.current_terminator: Literal["none", "cr", "lf", "crlf"] = "none"
         # Initialize serial with correct baudrate
-        if self.serial_manager.baudrate != 115200:
-             self.serial_manager.baudrate = 115200
+        if self.serial_manager.baudrate != 9600:
+             self.serial_manager.baudrate = 9600
              if self.serial_manager.is_connected():
                  self.serial_manager.reconnect()
+
+        # Start background monitor thread
+        self._monitor_thread = threading.Thread(target=self._monitor_serial, daemon=True)
+        self._monitor_thread.start()
 
     def update_config(self, protocol: Optional[str] = None, baudrate: Optional[int] = None, terminator: Optional[str] = None) -> None:
         """
@@ -57,6 +62,55 @@ class ControllerService:
     def _get_commands(self):
         return PROTOCOL_MAP[self.current_protocol]
 
+    def _log_serial_event(self, direction: str, data: bytes):
+        """
+        Logs detailed interaction info for manufacturer debugging.
+        direction: "SENT" or "RECEIVED"
+        """
+        msg = [
+            f"\n--- Serial Interaction ({direction}) ---",
+            f"Baud: {self.serial_manager.baudrate}",
+            f"Protocol: {self.current_protocol}",
+            f"Terminator: {self.current_terminator}",
+            f"Message (Bytes): {data}",
+            f"Hex Output: {data.hex(' ').upper()}",
+            "---------------------------------------"
+        ]
+        log_block = "\n".join(msg)
+        # Log to INFO and also print to stdout to ensure visibility in all contexts
+        logger.info(log_block)
+        print(log_block)
+
+    def _monitor_serial(self):
+        """
+        Background thread to monitor serial port for incoming data.
+        """
+        while True:
+            try:
+                # Polling interval to avoid CPU spin
+                time.sleep(0.1)
+                
+                if not self.serial_manager.is_connected():
+                    continue
+                
+                # Check directly on connection to avoid blocking read
+                conn = self.serial_manager.connection
+                if not conn:
+                    continue
+
+                # Use in_waiting to check for available bytes
+                # This property exists on pyserial objects
+                if hasattr(conn, 'in_waiting') and conn.in_waiting > 0:
+                     with self._lock:
+                         # Double check inside lock to prevent race with other readers
+                         # (though usually only send_query reads)
+                         if conn.in_waiting > 0:
+                             data = self.serial_manager.read(conn.in_waiting)
+                             if data:
+                                self._log_serial_event("RECEIVED (Async)", data)
+            except Exception as e:
+                logger.error(f"Error in serial monitor: {e}")
+
     def _apply_terminator(self, command: bytes) -> bytes:
         """Appends the configured terminator to the command bytes."""
         if self.current_terminator == "cr":
@@ -92,6 +146,7 @@ class ControllerService:
         with self._lock:
             final_command = self._apply_terminator(command_bytes)
             logger.info(f"Switching to port {port_id} using {self.current_protocol} (Terminator: {self.current_terminator})")
+            self._log_serial_event("SENT", final_command)
             self.serial_manager.write(final_command)
 
     def control_buzzer(self, state: Literal["on", "off"]) -> None:
@@ -117,6 +172,7 @@ class ControllerService:
         with self._lock:
             final_command = self._apply_terminator(command_bytes)
             logger.info(f"Turning buzzer {state} using {self.current_protocol} (Terminator: {self.current_terminator})")
+            self._log_serial_event("SENT", final_command)
             self.serial_manager.write(final_command)
 
     def _execute_simple_command(self, command_key: str, description: str) -> None:
@@ -129,6 +185,7 @@ class ControllerService:
         with self._lock:
             final_command = self._apply_terminator(command_bytes)
             logger.info(f"Executing {description} ({command_key}) using {self.current_protocol}")
+            self._log_serial_event("SENT", final_command)
             self.serial_manager.write(final_command)
 
     def set_light_mode(self, mode: str) -> None:
@@ -182,10 +239,12 @@ class ControllerService:
                 
             final_command = self._apply_terminator(command_bytes)
             logger.info(f"Sending query {query_name} using {self.current_protocol}")
+            self._log_serial_event("SENT", final_command)
             self.serial_manager.write(final_command)
             
             # Read response
             response = self.serial_manager.read(128) # Read up to 128 bytes
+            self._log_serial_event("RECEIVED", response)
             return response.hex(' ').upper()
 
     def run_all_queries(self) -> list[dict]:

@@ -67,6 +67,7 @@ class SerialManager:
 
         try:
             self.connection.write(data)
+            self.connection.flush()
             logger.debug(f"Wrote to serial: {data!r}")
         except serial.SerialException as e:
             logger.error(f"Failed to write to serial port: {e}")

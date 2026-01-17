@@ -12,8 +12,15 @@ def mock_serial_manager():
     manager.port = "/dev/ttyUSB0" # Mock the port attribute
     manager.baudrate = 9600
     # Mock new methods
-    manager.read.return_value = b'' 
+    manager.read.return_value = b''
     manager.reset_input_buffer = MagicMock()
+    
+    # Mock connection object for timeout manipulation
+    mock_connection = MagicMock()
+    mock_connection.timeout = 1.0
+    mock_connection.in_waiting = 0 # Default to no data
+    manager.connection = mock_connection
+    
     return manager
 
 @pytest.fixture
@@ -24,7 +31,7 @@ def controller(mock_serial_manager):
 def test_switch_port_valid(controller, mock_serial_manager):
     """Test switching to a valid port (1-8)."""
     controller.switch_port(1)
-    mock_serial_manager.write.assert_called_with(ConsumerACommands.SWITCH_PORT_1) # Defaults to Consumer A
+    mock_serial_manager.write.assert_called_with(HDC202X24Commands.SWITCH_PORT_1) # Defaults to HDC202_X24
 
     controller.update_config(protocol="enterprise")
     controller.switch_port(8)

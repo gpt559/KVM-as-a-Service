@@ -48,3 +48,5 @@ htmlcov/
 .mypy_cache/
 dmypy.json
 dmypy.sock
+
+.debug
