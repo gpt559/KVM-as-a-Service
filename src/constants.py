@@ -98,8 +98,9 @@ class HDC202X24Commands:
     # Switch all outputs to specific PC
     SWITCH_PORT_1 = b'\xAA\xBB\x03\x00\x00\x68'
     SWITCH_PORT_2 = b'\xAA\xBB\x03\x00\x01\x69'
-    SWITCH_PORT_3 = b'\xAA\xBB\x03\x00\x02\x6A'
-    SWITCH_PORT_4 = b'\xAA\xBB\x03\x00\x03\x6B'
+    # Unsupported in CSV
+    # SWITCH_PORT_3 = b'\xAA\xBB\x03\x00\x02\x6A'
+    # SWITCH_PORT_4 = b'\xAA\xBB\x03\x00\x03\x6B'
     SWITCH_ALL_NEXT = b'\xAA\xBB\x03\xFF\x00\x67'
 
     # Switch Specific Outputs (Output 1)
@@ -124,8 +125,9 @@ class HDC202X24Commands:
     AUDIO_PC1  = b'\xAA\xBB\x0D\x00\x00\x72'
     AUDIO_PC2  = b'\xAA\xBB\x0D\x00\x01\x73'
     AUDIO_PC3  = b'\xAA\xBB\x0D\x00\x02\x74'
-    AUDIO_PC4  = b'\xAA\xBB\x0D\x00\x03\x75'
-    AUDIO_NEXT = b'\xAA\xBB\x0D\xFF\x00\x71'
+    # Unsupported in CSV
+    # AUDIO_PC4  = b'\xAA\xBB\x0D\x00\x03\x75'
+    # AUDIO_NEXT = b'\xAA\xBB\x0D\xFF\x00\x71'
 
     # --- System & Hardware ---
     FAN_OFF  = b'\xAA\xBB\x0B\x00\x00\x70'
@@ -133,11 +135,12 @@ class HDC202X24Commands:
     FAN_LOW  = b'\xAA\xBB\x0B\x00\x02\x72'
     FAN_HIGH = b'\xAA\xBB\x0B\x00\x03\x73'
 
-    AUTODETECT_ON  = b'\xAA\xBB\x0E\x00\x01\x74'
-    AUTODETECT_OFF = b'\xAA\xBB\x0E\x00\x00\x73'
+    # Unsupported in CSV
+    # AUTODETECT_ON  = b'\xAA\xBB\x0E\x00\x01\x74'
+    # AUTODETECT_OFF = b'\xAA\xBB\x0E\x00\x00\x73'
     
-    AUTOSCAN_ON  = b'\xAA\xBB\x0F\x00\x01\x75'
-    AUTOSCAN_OFF = b'\xAA\xBB\x0F\x00\x00\x74'
+    # AUTOSCAN_ON  = b'\xAA\xBB\x0F\x00\x01\x75'
+    # AUTOSCAN_OFF = b'\xAA\xBB\x0F\x00\x00\x74'
 
     # --- USB & Input ---
     USB_FOCUS_PC1  = b'\xAA\xBB\x07\x00\x00\x6C'
@@ -157,10 +160,11 @@ class HDC202X24Commands:
     NET_PC1_OFF = b'\xAA\xBB\x09\x00\x0E\x7C'
     NET_PC2_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
     NET_PC2_OFF = b'\xAA\xBB\x09\x00\x0D\x7B'
-    NET_PC3_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
-    NET_PC3_OFF = b'\xAA\xBB\x09\x00\x0B\x79'
-    NET_PC4_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
-    NET_PC4_OFF = b'\xAA\xBB\x09\x00\x07\x75'
+    # Unsupported in CSV
+    # NET_PC3_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
+    # NET_PC3_OFF = b'\xAA\xBB\x09\x00\x0B\x79'
+    # NET_PC4_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
+    # NET_PC4_OFF = b'\xAA\xBB\x09\x00\x07\x75'
 
     # --- Queries ---
     QUERY_MONITOR_COUNT = b'\xAA\xBB\x81\x00\x00\xE6'
@@ -175,8 +179,9 @@ class HDC202X24Commands:
     QUERY_FAN           = b'\xAA\xBB\x8B\x00\xFF\xEF'
     QUERY_AUDIO_FOLLOW  = b'\xAA\xBB\x8C\x00\xFF\xF0'
     QUERY_AUDIO_CHANNEL = b'\xAA\xBB\x8D\x00\xFF\xF1'
-    QUERY_AUTODETECT    = b'\xAA\xBB\x8E\x00\xFF\xF2'
-    QUERY_AUTOSCAN      = b'\xAA\xBB\x8F\x00\xFF\xF3'
+    # Unsupported in CSV
+    # QUERY_AUTODETECT    = b'\xAA\xBB\x8E\x00\xFF\xF2'
+    # QUERY_AUTOSCAN      = b'\xAA\xBB\x8F\x00\xFF\xF3'
 
 # Map protocols to their command classes
 PROTOCOL_MAP = {
