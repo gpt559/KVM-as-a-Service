@@ -138,6 +138,16 @@
                     </div>
                 </div>
                 <div>
+                    <h5>Light Effect</h5>
+                    <select id="light-select" onchange="setLightMode(this.value)">
+                        <option value="" disabled selected>Select Effect</option>
+                        <option value="off">Off</option>
+                        <option value="basic">Basic</option>
+                        <option value="flow">Flow</option>
+                        <option value="breathing">Breathing</option>
+                    </select>
+                </div>
+                <div>
                     <h5>Protocol Configuration</h5>
                     <label for="protocol-select">Protocol</label>
                     <select id="protocol-select" onchange="updateConfig()">

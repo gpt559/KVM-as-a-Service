@@ -183,6 +183,30 @@ async function setBuzzer(state) {
 }
 
 /**
+ * Set Light Mode
+ * @param {string} mode
+ */
+async function setLightMode(mode) {
+    if (!isConnected) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/light`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: mode })
+        });
+
+        if (!response.ok) throw new Error('Failed to set light mode');
+        
+        const result = await response.json();
+        showToast(result.message);
+
+    } catch (error) {
+        showToast(`Error: ${error.message}`, true);
+    }
+}
+
+/**
  * Run Query
  */
 async function runQuery() {

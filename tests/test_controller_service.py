@@ -205,3 +205,17 @@ def test_send_query_unsupported(controller):
     
     with pytest.raises(NotImplementedError):
         controller.send_query("buzzer")
+
+def test_init_enforces_9600_baud(mock_serial_manager):
+    """Test that initializing ControllerService forces baudrate to 9600."""
+    # Setup mock with wrong baudrate
+    mock_serial_manager.baudrate = 115200
+    mock_serial_manager.is_connected.return_value = True
+    
+    # Initialize controller
+    ControllerService(mock_serial_manager)
+    
+    # Verify baudrate was corrected
+    assert mock_serial_manager.baudrate == 9600
+    # Verify it tried to reconnect
+    mock_serial_manager.reconnect.assert_called_once()

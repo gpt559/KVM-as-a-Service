@@ -33,6 +33,49 @@ def test_blind_commands_match_instructions():
     assert HDC202X24Commands.BUZZER_ON == expected_enable, \
         f"Buzzer Enable mismatch! Expected {expected_enable.hex(' ').upper()}, got {HDC202X24Commands.BUZZER_ON.hex(' ').upper()}"
 
+def test_switch_commands_match_instructions():
+    """
+    Verifies the Switch commands match the testing instructions exactly.
+    Switch to PC1: AA BB 03 00 00 68
+    Switch to PC2: AA BB 03 00 01 69
+    Switch to Next: AA BB 03 FF 00 67
+    """
+    expected_pc1 = b'\xAA\xBB\x03\x00\x00\x68'
+    assert HDC202X24Commands.SWITCH_PORT_1 == expected_pc1, \
+        f"Switch PC1 mismatch! Expected {expected_pc1.hex(' ').upper()}, got {HDC202X24Commands.SWITCH_PORT_1.hex(' ').upper()}"
+
+    expected_pc2 = b'\xAA\xBB\x03\x00\x01\x69'
+    assert HDC202X24Commands.SWITCH_PORT_2 == expected_pc2, \
+        f"Switch PC2 mismatch! Expected {expected_pc2.hex(' ').upper()}, got {HDC202X24Commands.SWITCH_PORT_2.hex(' ').upper()}"
+
+    expected_next = b'\xAA\xBB\x03\xFF\x00\x67'
+    assert HDC202X24Commands.SWITCH_ALL_NEXT == expected_next, \
+        f"Switch Next mismatch! Expected {expected_next.hex(' ').upper()}, got {HDC202X24Commands.SWITCH_ALL_NEXT.hex(' ').upper()}"
+
+def test_light_commands_match_instructions():
+    """
+    Verifies the Light Effect commands match the testing instructions exactly.
+    Off: AA BB 05 02 00 6C
+    Basic: AA BB 05 02 01 6D
+    Flow: AA BB 05 02 02 6E
+    Breathing: AA BB 05 02 03 6F
+    """
+    expected_off = b'\xAA\xBB\x05\x02\x00\x6C'
+    assert HDC202X24Commands.LIGHT_OFF == expected_off, \
+        f"Light Off mismatch! Expected {expected_off.hex(' ').upper()}, got {HDC202X24Commands.LIGHT_OFF.hex(' ').upper()}"
+
+    expected_basic = b'\xAA\xBB\x05\x02\x01\x6D'
+    assert HDC202X24Commands.LIGHT_BASIC == expected_basic, \
+        f"Light Basic mismatch! Expected {expected_basic.hex(' ').upper()}, got {HDC202X24Commands.LIGHT_BASIC.hex(' ').upper()}"
+
+    expected_flow = b'\xAA\xBB\x05\x02\x02\x6E'
+    assert HDC202X24Commands.LIGHT_FLOW == expected_flow, \
+        f"Light Flow mismatch! Expected {expected_flow.hex(' ').upper()}, got {HDC202X24Commands.LIGHT_FLOW.hex(' ').upper()}"
+
+    expected_breathing = b'\xAA\xBB\x05\x02\x03\x6F'
+    assert HDC202X24Commands.LIGHT_BREATHING == expected_breathing, \
+        f"Light Breathing mismatch! Expected {expected_breathing.hex(' ').upper()}, got {HDC202X24Commands.LIGHT_BREATHING.hex(' ').upper()}"
+
 def test_checksum_validity_all_commands():
     """
     Iterates through all commands in HDC202X24Commands and verifies their checksums are mathematically correct.
