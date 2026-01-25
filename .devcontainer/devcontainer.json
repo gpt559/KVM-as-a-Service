@@ -5,6 +5,7 @@
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
     "ghcr.io/devcontainers/features/node:1": {}
   },
+  "postCreateCommand": "pip install uv==0.9.26 && uv pip install --system -r requirements.txt && uv pip install --system pytest httpx ruff==0.14.14 ty==0.0.13",
   "runArgs": ["--privileged"],
   "forwardPorts": [8000],
   "customizations": {

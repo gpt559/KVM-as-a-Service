@@ -75,6 +75,12 @@ Enforce PEP 8 and project standards.
 ruff check .
 ```
 
+### 🔍 Type Checking
+Ensure type safety.
+```bash
+ty check
+```
+
 ### 🚀 Launching Hardware Simulator / Service
 Start the full stack (API + UI). In development, this runs the service. To simulate hardware without a device, ensure `SerialManager` is mocked or the environment is configured to use a virtual port (e.g., `socat`).
 ```bash
