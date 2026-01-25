@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Depends, status as http_status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,8 +33,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Global variables for services
-serial_manager = None
-controller_service = None
+serial_manager: Optional[SerialManager] = None
+controller_service: Optional[ControllerService] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -97,7 +98,7 @@ async def global_exception_handler(request: Request, exc: Exception):
             status="error",
             code="INTERNAL_ERROR",
             detail=str(exc)
-        ).dict()
+        ).model_dump()
     )
 
 @app.post(

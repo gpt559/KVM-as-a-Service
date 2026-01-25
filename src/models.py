@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
@@ -66,7 +66,7 @@ class QueryResponse(BaseModel):
     status: str = "success"
     command: str
     response_hex: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class SuccessResponse(BaseModel):
     """
@@ -74,7 +74,7 @@ class SuccessResponse(BaseModel):
     """
     status: str = "success"
     message: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ErrorResponse(BaseModel):
     """
@@ -91,7 +91,7 @@ class TestLog(BaseModel):
     action: str
     status: Literal["success", "failed", "skipped"]
     detail: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class TestResponse(BaseModel):
     """

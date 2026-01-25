@@ -90,6 +90,7 @@ class SerialManager:
             if not self.connect():
                  raise serial.SerialException("Serial port is not open")
 
+        assert self.connection is not None
         try:
             self.connection.write(data)
             self.connection.flush()
