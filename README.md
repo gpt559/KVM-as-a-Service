@@ -10,16 +10,16 @@ The system is built as a layered architecture to ensure reliable hardware contro
 
 ```mermaid
 graph TD
-    User[User / Web Browser] -- "HTTP Request" --> API[REST API (FastAPI)]
-    API -- "Call Method" --> Controller[Controller Service]
+    User["User / Web Browser"] -- "HTTP Request" --> API["REST API (FastAPI)"]
+    API -- "Call Method" --> Controller["Controller Service"]
     
     subgraph "Application Core"
-        Controller -- "Async Command" --> Queue[Command Queue]
-        Queue -- "Process" --> SerialMgr[Serial Manager]
-        SerialMgr -- "Thread Lock" --> SerialPort[Serial Port]
+        Controller -- "Async Command" --> Queue["Command Queue"]
+        Queue -- "Process" --> SerialMgr["Serial Manager"]
+        SerialMgr -- "Thread Lock" --> SerialPort["Serial Port"]
     end
     
-    SerialPort -- "UART / TTL (Hex Bytes)" --> KVM[TESmart KVM Switch]
+    SerialPort -- "UART / TTL (Hex Bytes)" --> KVM["TESmart KVM Switch"]
     KVM -- "Response (Hex Bytes)" --> SerialPort
     SerialPort -- "Read" --> SerialMgr
     SerialMgr -- "Update State" --> Controller
