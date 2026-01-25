@@ -94,94 +94,31 @@ class HDC202X24Commands:
     Source: External_Button_Board_Command_Test_EN_CSV.csv
     Format: 0xAA 0xBB [CMD] [DATA1] [DATA2] [CHECKSUM]
     """
-    # --- Switching ---
-    # Switch all outputs to specific PC
-    SWITCH_PORT_1 = b'\xAA\xBB\x03\x00\x00\x68'
-    SWITCH_PORT_2 = b'\xAA\xBB\x03\x00\x01\x69'
-    # Unsupported in CSV
-    # SWITCH_PORT_3 = b'\xAA\xBB\x03\x00\x02\x6A'
-    # SWITCH_PORT_4 = b'\xAA\xBB\x03\x00\x03\x6B'
-    SWITCH_ALL_NEXT = b'\xAA\xBB\x03\xFF\x00\x67'
-
-    # Switch Specific Outputs (Output 1)
-    SWITCH_OUT1_PC1 = b'\xAA\xBB\x03\x01\x00\x69'
-    SWITCH_OUT1_PC2 = b'\xAA\xBB\x03\x01\x01\x6A'
-    # Switch Specific Outputs (Output 2)
-    SWITCH_OUT2_PC1 = b'\xAA\xBB\x03\x02\x00\x6A'
-    SWITCH_OUT2_PC2 = b'\xAA\xBB\x03\x02\x01\x6B'
-
-    # --- Audio/Video ---
-    BUZZER_ON     = b'\xAA\xBB\x04\x00\x01\x6A'
-    BUZZER_OFF    = b'\xAA\xBB\x04\x00\x00\x69'
-
-    LIGHT_OFF       = b'\xAA\xBB\x05\x02\x00\x6C'
-    LIGHT_BASIC     = b'\xAA\xBB\x05\x02\x01\x6D'
-    LIGHT_FLOW      = b'\xAA\xBB\x05\x02\x02\x6E'
-    LIGHT_BREATHING = b'\xAA\xBB\x05\x02\x03\x6F'
-
-    AUDIO_FOLLOW_ON  = b'\xAA\xBB\x0C\x00\x01\x72'
-    AUDIO_FOLLOW_OFF = b'\xAA\xBB\x0C\x00\x00\x71'
+    # Command IDs
+    CMD_SWITCH_PORT = 0x03
+    CMD_BUZZER      = 0x04
+    CMD_LIGHT       = 0x05
+    CMD_USB_FOCUS   = 0x07
+    CMD_USB_COMPAT  = 0x08
+    CMD_NETWORK     = 0x09
+    CMD_MOUSE_MIDDLE = 0x0A
+    CMD_FAN         = 0x0B
+    CMD_AUDIO_FOLLOW = 0x0C
+    CMD_AUDIO_CHANNEL = 0x0D
     
-    AUDIO_PC1  = b'\xAA\xBB\x0D\x00\x00\x72'
-    AUDIO_PC2  = b'\xAA\xBB\x0D\x00\x01\x73'
-    AUDIO_PC3  = b'\xAA\xBB\x0D\x00\x02\x74'
-    # Unsupported in CSV
-    # AUDIO_PC4  = b'\xAA\xBB\x0D\x00\x03\x75'
-    # AUDIO_NEXT = b'\xAA\xBB\x0D\xFF\x00\x71'
-
-    # --- System & Hardware ---
-    FAN_OFF  = b'\xAA\xBB\x0B\x00\x00\x70'
-    FAN_AUTO = b'\xAA\xBB\x0B\x00\x01\x71'
-    FAN_LOW  = b'\xAA\xBB\x0B\x00\x02\x72'
-    FAN_HIGH = b'\xAA\xBB\x0B\x00\x03\x73'
-
-    # Unsupported in CSV
-    # AUTODETECT_ON  = b'\xAA\xBB\x0E\x00\x01\x74'
-    # AUTODETECT_OFF = b'\xAA\xBB\x0E\x00\x00\x73'
-    
-    # AUTOSCAN_ON  = b'\xAA\xBB\x0F\x00\x01\x75'
-    # AUTOSCAN_OFF = b'\xAA\xBB\x0F\x00\x00\x74'
-
-    # --- USB & Input ---
-    USB_FOCUS_PC1  = b'\xAA\xBB\x07\x00\x00\x6C'
-    USB_FOCUS_PC2  = b'\xAA\xBB\x07\x00\x01\x6D'
-    USB_FOCUS_NEXT = b'\xAA\xBB\x07\xFF\x00\x6B'
-
-    USB_COMPAT_ON  = b'\xAA\xBB\x08\x00\x01\x6E'
-    USB_COMPAT_OFF = b'\xAA\xBB\x08\x00\x00\x6D'
-
-    MOUSE_MIDDLE_ON  = b'\xAA\xBB\x0A\x00\x01\x70'
-    MOUSE_MIDDLE_OFF = b'\xAA\xBB\x0A\x00\x00\x6F'
-
-    # --- Network Control ---
-    # Note: ON commands seem to be shared (0F) for all PCs in CSV, likely "All On"
-    # OFF commands are distinct.
-    NET_PC1_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
-    NET_PC1_OFF = b'\xAA\xBB\x09\x00\x0E\x7C'
-    NET_PC2_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
-    NET_PC2_OFF = b'\xAA\xBB\x09\x00\x0D\x7B'
-    # Unsupported in CSV
-    # NET_PC3_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
-    # NET_PC3_OFF = b'\xAA\xBB\x09\x00\x0B\x79'
-    # NET_PC4_ON  = b'\xAA\xBB\x09\x00\x0F\x7D'
-    # NET_PC4_OFF = b'\xAA\xBB\x09\x00\x07\x75'
-
-    # --- Queries ---
-    QUERY_MONITOR_COUNT = b'\xAA\xBB\x81\x00\x00\xE6'
-    QUERY_KM_FOCUS      = b'\xAA\xBB\x82\x00\xFF\xE6'
-    QUERY_MAPPING       = b'\xAA\xBB\x83\x00\xFF\xE7'
-    QUERY_BUZZER        = b'\xAA\xBB\x84\x00\xFF\xE8'
-    QUERY_LIGHT         = b'\xAA\xBB\x85\x00\xFF\xE9'
-    QUERY_USB_FOCUS     = b'\xAA\xBB\x87\x00\xFF\xEB'
-    QUERY_USB_COMPAT    = b'\xAA\xBB\x88\x00\xFF\xEC'
-    QUERY_NETWORK       = b'\xAA\xBB\x89\x00\xFF\xED'
-    QUERY_MOUSE_MIDDLE  = b'\xAA\xBB\x8A\x00\xFF\xEE'
-    QUERY_FAN           = b'\xAA\xBB\x8B\x00\xFF\xEF'
-    QUERY_AUDIO_FOLLOW  = b'\xAA\xBB\x8C\x00\xFF\xF0'
-    QUERY_AUDIO_CHANNEL = b'\xAA\xBB\x8D\x00\xFF\xF1'
-    # Unsupported in CSV
-    # QUERY_AUTODETECT    = b'\xAA\xBB\x8E\x00\xFF\xF2'
-    # QUERY_AUTOSCAN      = b'\xAA\xBB\x8F\x00\xFF\xF3'
+    # Query IDs
+    CMD_QUERY_MONITOR_COUNT = 0x81
+    CMD_QUERY_KM_FOCUS      = 0x82
+    CMD_QUERY_MAPPING       = 0x83
+    CMD_QUERY_BUZZER        = 0x84
+    CMD_QUERY_LIGHT         = 0x85
+    CMD_QUERY_USB_FOCUS     = 0x87
+    CMD_QUERY_USB_COMPAT    = 0x88
+    CMD_QUERY_NETWORK       = 0x89
+    CMD_QUERY_MOUSE_MIDDLE  = 0x8A
+    CMD_QUERY_FAN           = 0x8B
+    CMD_QUERY_AUDIO_FOLLOW  = 0x8C
+    CMD_QUERY_AUDIO_CHANNEL = 0x8D
 
 # Map protocols to their command classes
 PROTOCOL_MAP = {

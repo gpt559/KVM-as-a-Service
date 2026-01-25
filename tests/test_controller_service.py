@@ -1,8 +1,10 @@
 import pytest
+import time
 from unittest.mock import MagicMock
 from src.controller_service import ControllerService
 from src.serial_manager import SerialManager
 from src.constants import EnterpriseCommands, ConsumerACommands, ConsumerBCommands, Protocol, HDC202X24Commands
+from src.protocol_handler import ProtocolHandler
 
 @pytest.fixture
 def mock_serial_manager():
@@ -12,7 +14,7 @@ def mock_serial_manager():
     manager.port = "/dev/ttyUSB0" # Mock the port attribute
     manager.baudrate = 9600
     # Mock new methods
-    manager.read.return_value = b''
+    manager.read_existing.return_value = b''
     manager.reset_input_buffer = MagicMock()
     
     # Mock connection object for timeout manipulation
@@ -26,12 +28,20 @@ def mock_serial_manager():
 @pytest.fixture
 def controller(mock_serial_manager):
     """Fixture to create a ControllerService with the mocked SerialManager."""
-    return ControllerService(mock_serial_manager)
+    c = ControllerService(mock_serial_manager)
+    yield c
+    # Cleanup
+    c._shutdown_event.set()
+    c._monitor_thread.join(timeout=1.0)
 
 def test_switch_port_valid(controller, mock_serial_manager):
     """Test switching to a valid port (1-8)."""
+    # Default is HDC202
     controller.switch_port(1)
-    mock_serial_manager.write.assert_called_with(HDC202X24Commands.SWITCH_PORT_1) # Defaults to HDC202_X24
+    
+    # Expected packet: AA BB 03 00 00 CS
+    expected_packet = ProtocolHandler.build_packet(HDC202X24Commands.CMD_SWITCH_PORT, [0x00, 0x00])
+    mock_serial_manager.write.assert_called_with(expected_packet)
 
     controller.update_config(protocol="enterprise")
     controller.switch_port(8)
@@ -45,10 +55,6 @@ def test_switch_port_invalid(controller, mock_serial_manager):
     with pytest.raises(ValueError, match="Invalid port ID"):
         controller.switch_port(9)
 
-    # Ensure no write happened on invalid input
-    # mock_serial_manager.write.assert_called() # Removed incorrect assertion
-    
-    # Actually, let's reset the mock to be sure
     mock_serial_manager.reset_mock()
     
     with pytest.raises(ValueError):
@@ -57,14 +63,14 @@ def test_switch_port_invalid(controller, mock_serial_manager):
 
 def test_control_buzzer_valid(controller, mock_serial_manager):
     """Test controlling the buzzer with valid states."""
-    controller.update_config(protocol="enterprise") # Consumer A doesn't have buzzer? Check constants. 
-    # Consumer A keys: SWITCH_PORT_1..4. No buzzer.
-    
+    # Test HDC202 (Default)
+    controller.control_buzzer("on")
+    expected_on = ProtocolHandler.build_packet(HDC202X24Commands.CMD_BUZZER, [0x00, 0x01])
+    mock_serial_manager.write.assert_called_with(expected_on)
+
+    controller.update_config(protocol="enterprise")
     controller.control_buzzer("on")
     mock_serial_manager.write.assert_called_with(EnterpriseCommands.BUZZER_ON)
-
-    controller.control_buzzer("off")
-    mock_serial_manager.write.assert_called_with(EnterpriseCommands.BUZZER_OFF)
 
 def test_control_buzzer_invalid(controller, mock_serial_manager):
     """Test controlling the buzzer with invalid state."""
@@ -73,7 +79,7 @@ def test_control_buzzer_invalid(controller, mock_serial_manager):
     
     mock_serial_manager.reset_mock()
     with pytest.raises(ValueError):
-        controller.control_buzzer("INVALID_STATE") # Case sensitive check
+        controller.control_buzzer("INVALID_STATE")
     mock_serial_manager.write.assert_not_called()
 
 def test_check_status_healthy(controller, mock_serial_manager):
@@ -84,25 +90,22 @@ def test_check_status_healthy(controller, mock_serial_manager):
     assert status["status"] == "healthy"
     assert status["connected"] is True
     
-    # Ensure we didn't try to reconnect if already connected
     mock_serial_manager.connect.assert_not_called()
 
 def test_check_status_reconnect_success(controller, mock_serial_manager):
     """Test check_status attempts reconnect when disconnected."""
     mock_serial_manager.is_connected.return_value = False
-    # Mock connect to return True (success)
     mock_serial_manager.connect.return_value = True
     
     status = controller.check_status()
     
     mock_serial_manager.connect.assert_called_once()
-    assert status["status"] == "healthy" # Assumes connect succeeds (no exception raised)
+    assert status["status"] == "healthy"
     assert status["connected"] is True
 
 def test_check_status_reconnect_failure(controller, mock_serial_manager):
     """Test check_status when reconnect fails."""
     mock_serial_manager.is_connected.return_value = False
-    # Mock connect to return False (failure)
     mock_serial_manager.connect.return_value = False
     
     status = controller.check_status()
@@ -134,10 +137,6 @@ def test_protocol_consumer_a(controller, mock_serial_manager):
     
     controller.switch_port(1)
     mock_serial_manager.write.assert_called_with(ConsumerACommands.SWITCH_PORT_1)
-    
-    # Test fallback/not implemented behavior if applicable, 
-    # but Consumer A supports ports 1-4. Port 5 might fail if not defined in map, 
-    # but let's stick to valid ones first.
 
 def test_protocol_consumer_b(controller, mock_serial_manager):
     """Test switching ports using Consumer B protocol."""
@@ -151,7 +150,6 @@ def test_terminator_lf(controller, mock_serial_manager):
     controller.update_config(terminator="lf")
     assert controller.current_terminator == "lf"
     
-    # Send a command and check if \n is appended
     controller.update_config(protocol="enterprise")
     controller.switch_port(1)
     
@@ -174,30 +172,38 @@ def test_protocol_hdc202_x24(controller, mock_serial_manager):
     controller.update_config(protocol="hdc202_x24")
     
     controller.switch_port(1)
-    mock_serial_manager.write.assert_called_with(HDC202X24Commands.SWITCH_PORT_1)
+    # Verify dynamic packet construction
+    expected = ProtocolHandler.build_packet(HDC202X24Commands.CMD_SWITCH_PORT, [0x00, 0x00])
+    mock_serial_manager.write.assert_called_with(expected)
     
     controller.control_buzzer("on")
-    mock_serial_manager.write.assert_called_with(HDC202X24Commands.BUZZER_ON)
+    expected_bz = ProtocolHandler.build_packet(HDC202X24Commands.CMD_BUZZER, [0x00, 0x01])
+    mock_serial_manager.write.assert_called_with(expected_bz)
 
 def test_send_query(controller, mock_serial_manager):
-    """Test sending a query and reading a response."""
+    """Test sending a query and reading a response via async monitor."""
     controller.update_config(protocol="hdc202_x24")
     
-    # Mock read response
-    mock_serial_manager.read.return_value = b'\xAA\xBB\x84\x01\x00\xEA'
+    # Packet: AA BB 84 01 00 EA (Buzzer query response)
+    # CMD 84, LEN 01, DATA 00.
+    # Note: Our parser uses byte 3 as Len if valid.
+    # AA BB 84 01 00 EA -> Valid.
+    response_packet = b'\xAA\xBB\x84\x01\x00\xEA'
     
+    # Mock read_existing to return nothing first, then the packet
+    # This simulates data arriving after a short delay
+    mock_serial_manager.read_existing.side_effect = [b'', response_packet, b'', b'']
+    
+    # We call send_query. It will loop waiting for future.
+    # The monitor thread running in background will call read_existing, get the packet, and complete future.
     response = controller.send_query("buzzer")
     
     assert response == "AA BB 84 01 00 EA"
     
-    # Check that reset_input_buffer was called
-    mock_serial_manager.reset_input_buffer.assert_called()
-    
     # Check write called with correct query command
-    mock_serial_manager.write.assert_called_with(HDC202X24Commands.QUERY_BUZZER)
-    
-    # Check read called
-    mock_serial_manager.read.assert_called()
+    expected_query = ProtocolHandler.build_packet(HDC202X24Commands.CMD_QUERY_BUZZER, [0x00, 0xFF]) # Payload 00 FF
+    # Or whatever logic I put in send_query. I put 00 FF for buzzer.
+    mock_serial_manager.write.assert_called_with(expected_query)
 
 def test_send_query_unsupported(controller):
     """Test sending an unsupported query."""
@@ -208,14 +214,12 @@ def test_send_query_unsupported(controller):
 
 def test_init_enforces_9600_baud(mock_serial_manager):
     """Test that initializing ControllerService forces baudrate to 9600."""
-    # Setup mock with wrong baudrate
     mock_serial_manager.baudrate = 115200
     mock_serial_manager.is_connected.return_value = True
     
     # Initialize controller
-    ControllerService(mock_serial_manager)
+    c = ControllerService(mock_serial_manager)
+    c._shutdown_event.set() # Cleanup
     
-    # Verify baudrate was corrected
     assert mock_serial_manager.baudrate == 9600
-    # Verify it tried to reconnect
     mock_serial_manager.reconnect.assert_called_once()

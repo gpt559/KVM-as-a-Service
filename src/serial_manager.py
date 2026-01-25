@@ -100,6 +100,22 @@ class SerialManager:
         """Checks if the serial connection is currently open."""
         return self.connection is not None and self.connection.is_open
 
+    @property
+    def bytes_available(self) -> int:
+        """Returns the number of bytes currently waiting in the input buffer."""
+        if self.connection and self.connection.is_open:
+            return self.connection.in_waiting
+        return 0
+
+    def read_existing(self) -> bytes:
+        """
+        Reads all currently available bytes from the serial port.
+        Returns empty bytes if no data is available.
+        """
+        if self.bytes_available > 0:
+            return self.read(self.bytes_available)
+        return b""
+
     def reset_input_buffer(self) -> None:
         """Clears the input buffer."""
         if self.connection and self.connection.is_open:
