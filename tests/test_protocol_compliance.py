@@ -1,5 +1,5 @@
-import pytest
 from src.constants import HDC202X24Commands
+from src.protocol_handler import ProtocolHandler
 
 def calculate_checksum(command_bytes: bytes) -> int:
     """
@@ -16,8 +16,11 @@ def test_golden_command_matches_instructions():
     Expected: AA BB 81 00 00 E6
     """
     expected = b'\xAA\xBB\x81\x00\x00\xE6'
-    assert HDC202X24Commands.QUERY_MONITOR_COUNT == expected, \
-        f"Golden Command mismatch! Expected {expected.hex(' ').upper()}, got {HDC202X24Commands.QUERY_MONITOR_COUNT.hex(' ').upper()}"
+    # CMD 0x81, Payload 00 00
+    actual = ProtocolHandler.build_packet(HDC202X24Commands.CMD_QUERY_MONITOR_COUNT, [0x00, 0x00])
+    
+    assert actual == expected, \
+        f"Golden Command mismatch! Expected {expected.hex(' ').upper()}, got {actual.hex(' ').upper()}"
 
 def test_blind_commands_match_instructions():
     """
@@ -26,12 +29,16 @@ def test_blind_commands_match_instructions():
     Enable: AA BB 04 00 01 6A
     """
     expected_mute = b'\xAA\xBB\x04\x00\x00\x69'
-    assert HDC202X24Commands.BUZZER_OFF == expected_mute, \
-        f"Buzzer Mute mismatch! Expected {expected_mute.hex(' ').upper()}, got {HDC202X24Commands.BUZZER_OFF.hex(' ').upper()}"
+    actual_mute = ProtocolHandler.build_packet(HDC202X24Commands.CMD_BUZZER, [0x00, 0x00])
+    
+    assert actual_mute == expected_mute, \
+        f"Buzzer Mute mismatch! Expected {expected_mute.hex(' ').upper()}, got {actual_mute.hex(' ').upper()}"
 
     expected_enable = b'\xAA\xBB\x04\x00\x01\x6A'
-    assert HDC202X24Commands.BUZZER_ON == expected_enable, \
-        f"Buzzer Enable mismatch! Expected {expected_enable.hex(' ').upper()}, got {HDC202X24Commands.BUZZER_ON.hex(' ').upper()}"
+    actual_enable = ProtocolHandler.build_packet(HDC202X24Commands.CMD_BUZZER, [0x00, 0x01])
+
+    assert actual_enable == expected_enable, \
+        f"Buzzer Enable mismatch! Expected {expected_enable.hex(' ').upper()}, got {actual_enable.hex(' ').upper()}"
 
 def test_switch_commands_match_instructions():
     """
@@ -41,16 +48,19 @@ def test_switch_commands_match_instructions():
     Switch to Next: AA BB 03 FF 00 67
     """
     expected_pc1 = b'\xAA\xBB\x03\x00\x00\x68'
-    assert HDC202X24Commands.SWITCH_PORT_1 == expected_pc1, \
-        f"Switch PC1 mismatch! Expected {expected_pc1.hex(' ').upper()}, got {HDC202X24Commands.SWITCH_PORT_1.hex(' ').upper()}"
+    actual_pc1 = ProtocolHandler.build_packet(HDC202X24Commands.CMD_SWITCH_PORT, [0x00, 0x00])
+    assert actual_pc1 == expected_pc1, \
+        f"Switch PC1 mismatch! Expected {expected_pc1.hex(' ').upper()}, got {actual_pc1.hex(' ').upper()}"
 
     expected_pc2 = b'\xAA\xBB\x03\x00\x01\x69'
-    assert HDC202X24Commands.SWITCH_PORT_2 == expected_pc2, \
-        f"Switch PC2 mismatch! Expected {expected_pc2.hex(' ').upper()}, got {HDC202X24Commands.SWITCH_PORT_2.hex(' ').upper()}"
+    actual_pc2 = ProtocolHandler.build_packet(HDC202X24Commands.CMD_SWITCH_PORT, [0x00, 0x01])
+    assert actual_pc2 == expected_pc2, \
+        f"Switch PC2 mismatch! Expected {expected_pc2.hex(' ').upper()}, got {actual_pc2.hex(' ').upper()}"
 
     expected_next = b'\xAA\xBB\x03\xFF\x00\x67'
-    assert HDC202X24Commands.SWITCH_ALL_NEXT == expected_next, \
-        f"Switch Next mismatch! Expected {expected_next.hex(' ').upper()}, got {HDC202X24Commands.SWITCH_ALL_NEXT.hex(' ').upper()}"
+    actual_next = ProtocolHandler.build_packet(HDC202X24Commands.CMD_SWITCH_PORT, [0xFF, 0x00])
+    assert actual_next == expected_next, \
+        f"Switch Next mismatch! Expected {expected_next.hex(' ').upper()}, got {actual_next.hex(' ').upper()}"
 
 def test_light_commands_match_instructions():
     """
@@ -61,39 +71,21 @@ def test_light_commands_match_instructions():
     Breathing: AA BB 05 02 03 6F
     """
     expected_off = b'\xAA\xBB\x05\x02\x00\x6C'
-    assert HDC202X24Commands.LIGHT_OFF == expected_off, \
-        f"Light Off mismatch! Expected {expected_off.hex(' ').upper()}, got {HDC202X24Commands.LIGHT_OFF.hex(' ').upper()}"
+    actual_off = ProtocolHandler.build_packet(HDC202X24Commands.CMD_LIGHT, [0x02, 0x00])
+    assert actual_off == expected_off, \
+        f"Light Off mismatch! Expected {expected_off.hex(' ').upper()}, got {actual_off.hex(' ').upper()}"
 
     expected_basic = b'\xAA\xBB\x05\x02\x01\x6D'
-    assert HDC202X24Commands.LIGHT_BASIC == expected_basic, \
-        f"Light Basic mismatch! Expected {expected_basic.hex(' ').upper()}, got {HDC202X24Commands.LIGHT_BASIC.hex(' ').upper()}"
+    actual_basic = ProtocolHandler.build_packet(HDC202X24Commands.CMD_LIGHT, [0x02, 0x01])
+    assert actual_basic == expected_basic, \
+        f"Light Basic mismatch! Expected {expected_basic.hex(' ').upper()}, got {actual_basic.hex(' ').upper()}"
 
     expected_flow = b'\xAA\xBB\x05\x02\x02\x6E'
-    assert HDC202X24Commands.LIGHT_FLOW == expected_flow, \
-        f"Light Flow mismatch! Expected {expected_flow.hex(' ').upper()}, got {HDC202X24Commands.LIGHT_FLOW.hex(' ').upper()}"
+    actual_flow = ProtocolHandler.build_packet(HDC202X24Commands.CMD_LIGHT, [0x02, 0x02])
+    assert actual_flow == expected_flow, \
+        f"Light Flow mismatch! Expected {expected_flow.hex(' ').upper()}, got {actual_flow.hex(' ').upper()}"
 
     expected_breathing = b'\xAA\xBB\x05\x02\x03\x6F'
-    assert HDC202X24Commands.LIGHT_BREATHING == expected_breathing, \
-        f"Light Breathing mismatch! Expected {expected_breathing.hex(' ').upper()}, got {HDC202X24Commands.LIGHT_BREATHING.hex(' ').upper()}"
-
-def test_checksum_validity_all_commands():
-    """
-    Iterates through all commands in HDC202X24Commands and verifies their checksums are mathematically correct.
-    This ensures no typos in the hardcoded constants.
-    """
-    # Get all attributes of the class
-    for attr_name in dir(HDC202X24Commands):
-        # Skip internal attributes
-        if attr_name.startswith("__"):
-            continue
-        
-        value = getattr(HDC202X24Commands, attr_name)
-        
-        # We only care about bytes that look like protocol commands (start with AA BB)
-        if isinstance(value, bytes) and value.startswith(b'\xAA\xBB'):
-            # Calculate expected checksum
-            expected_checksum = calculate_checksum(value)
-            actual_checksum = value[-1]
-            
-            assert actual_checksum == expected_checksum, \
-                f"Checksum mismatch in {attr_name}! Cmd: {value.hex(' ').upper()}. Calculated: {hex(expected_checksum)}, Found: {hex(actual_checksum)}"
+    actual_breathing = ProtocolHandler.build_packet(HDC202X24Commands.CMD_LIGHT, [0x02, 0x03])
+    assert actual_breathing == expected_breathing, \
+        f"Light Breathing mismatch! Expected {expected_breathing.hex(' ').upper()}, got {actual_breathing.hex(' ').upper()}"

@@ -1,5 +1,4 @@
 import pytest
-import time
 from unittest.mock import MagicMock
 from src.controller_service import ControllerService
 from src.serial_manager import SerialManager

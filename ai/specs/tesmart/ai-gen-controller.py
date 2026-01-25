@@ -1,6 +1,5 @@
 import serial
 import time
-import sys
 
 # ==========================================
 # CONFIGURATION
@@ -70,7 +69,7 @@ def calculate_checksum(payload_hex):
     return checksum
 
 def main():
-    print(f"--- TESmart KVM Controller ---")
+    print("--- TESmart KVM Controller ---")
     print(f"Target: {SERIAL_PORT} @ {BAUD_RATE} baud")
     
     try:

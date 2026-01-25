@@ -1,7 +1,6 @@
 import threading
 import logging
 import time
-import queue
 from concurrent.futures import Future, TimeoutError
 from typing import Literal, Optional, Dict, Any
 
@@ -296,7 +295,7 @@ class ControllerService:
                  try:
                      port = int(target.replace("pc", ""))
                      packet = ProtocolHandler.build_packet(HDC202X24Commands.CMD_USB_FOCUS, [0x00, port - 1])
-                 except:
+                 except Exception:
                      logger.error(f"Invalid USB focus target: {target}")
                      return
              self._send_command_bytes(packet)

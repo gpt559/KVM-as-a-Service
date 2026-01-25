@@ -1,6 +1,5 @@
 import serial
 import time
-import sys
 
 # ==========================================
 # CONFIGURATION
@@ -50,9 +49,9 @@ def send_command(ser, cmd_bytes, label="Command", wait_time=0.5):
         return None
 
 def test_baud(baud):
-    print(f"\n========================================")
+    print("\n========================================")
     print(f"Testing Baud Rate: {baud}")
-    print(f"========================================")
+    print("========================================")
     
     try:
         with serial.Serial(SERIAL_PORT, baud, timeout=1) as ser:
@@ -78,7 +77,7 @@ def test_baud(baud):
         return False
 
 def main():
-    print(f"--- TESmart KVM Verification Script ---")
+    print("--- TESmart KVM Verification Script ---")
     print(f"Target: {SERIAL_PORT}")
     
     success = False

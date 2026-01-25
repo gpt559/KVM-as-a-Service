@@ -425,13 +425,13 @@ async def run_test_permutations(
                     try:
                         controller.switch_port(1)
                         logs.append(TestLog(
-                            action=f"Switch Port 1",
+                            action="Switch Port 1",
                             status="success",
                             detail=f"Sent (No HW Feedback) - {config_desc}"
                         ))
                     except Exception as e:
                         logs.append(TestLog(
-                            action=f"Switch Port 1",
+                            action="Switch Port 1",
                             status="failed",
                             detail=f"{config_desc}: {str(e)}"
                         ))
@@ -442,13 +442,13 @@ async def run_test_permutations(
                     try:
                         controller.switch_port(2)
                         logs.append(TestLog(
-                            action=f"Switch Port 2",
+                            action="Switch Port 2",
                             status="success",
                             detail=f"Sent (No HW Feedback) - {config_desc}"
                         ))
                     except Exception as e:
                         logs.append(TestLog(
-                            action=f"Switch Port 2",
+                            action="Switch Port 2",
                             status="failed",
                             detail=f"{config_desc}: {str(e)}"
                         ))

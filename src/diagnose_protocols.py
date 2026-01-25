@@ -1,9 +1,7 @@
 import time
 import logging
-import serial
 from src.serial_manager import SerialManager
 from src.constants import (
-    Protocol,
     EnterpriseCommands,
     ConsumerACommands,
     ConsumerBCommands,
@@ -64,7 +62,7 @@ def test_protocol(serial_mgr, protocol_name, command_class):
                     hex_resp = response.hex(' ').upper()
                     try:
                         ascii_resp = response.decode('ascii', errors='ignore')
-                    except:
+                    except Exception:
                         ascii_resp = "<non-ascii>"
                     logger.info(f"RESPONSE RECEIVED [{protocol_name}]: HEX={hex_resp} | ASCII={ascii_resp}")
                 else:

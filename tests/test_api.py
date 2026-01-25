@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 from src.main import app, get_controller
