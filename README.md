@@ -1,5 +1,7 @@
 # KVM-as-a-Service
 
+[![CI](https://github.com/gpt559/KVM-as-a-Service/actions/workflows/ci.yml/badge.svg)](https://github.com/gpt559/KVM-as-a-Service/actions/workflows/ci.yml)
+
 A modern, web-based controller for TESmart KVM Switches, designed to run on a **Raspberry Pi** or any Linux environment. This project exposes a REST API and a web interface to control input switching, buzzer settings, and advanced features over a serial connection.
 
 It supports multiple TESmart protocols, including the newer HDC202/X24 series as well as legacy Enterprise and Consumer models.
