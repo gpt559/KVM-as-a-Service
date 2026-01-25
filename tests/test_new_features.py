@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from src.main import app, get_controller
 from src.controller_service import ControllerService
 from src.constants import Protocol
@@ -28,11 +28,8 @@ def test_run_all_queries_endpoint(client_override):
         {"command": "fail_cmd", "response": "Error", "status": "error"}
     ]
     
-    # Mock the method on the instance
-    original_method = mock_controller_instance.run_all_queries
-    mock_controller_instance.run_all_queries = MagicMock(return_value=mock_results)
-    
-    try:
+    # Use patch.object to mock the method on the instance safely
+    with patch.object(mock_controller_instance, 'run_all_queries', return_value=mock_results):
         response = client_override.post("/api/v1/test/queries")
         assert response.status_code == 200
         data = response.json()
@@ -41,8 +38,6 @@ def test_run_all_queries_endpoint(client_override):
         assert len(data["logs"]) == 2
         assert data["logs"][0]["action"] == "Query: test_cmd"
         assert data["logs"][0]["status"] == "success"
-    finally:
-        mock_controller_instance.run_all_queries = original_method
 
 # Note: test_run_all_queries_logic removed or needs update because it tries to mock internal methods
 # of the same instance which might be tricky if not scoped correctly. 
