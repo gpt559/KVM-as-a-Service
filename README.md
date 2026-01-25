@@ -12,8 +12,18 @@ A modern, web-based controller for TESmart KVM Switches, designed to run on a **
 
 ### Hardware Setup
 
-1.  Connect your USB-to-Serial adapter to the Raspberry Pi.
-2.  Connect the DB9 end to the RS232 port on the KVM.
+> ⚠️ **CRITICAL HARDWARE WARNING** ⚠️
+> *   **DO NOT** use a standard RS-232 cable (±12V levels). This could damage your KVM.
+> *   You **MUST** use a **3.3V TTL** USB-to-Serial cable.
+> *   **Interface**: 3.5 mm service port (UART with TTL levels).
+
+**Pinout Configuration:**
+*   **Pin 3**: TX (Transmit)
+*   **Pin 2**: RX (Receive)
+*   **Pin 1**: GND (Ground)
+
+1.  Connect your **3.3V TTL USB-to-Serial adapter** to the Raspberry Pi.
+2.  Connect the 3.5mm jack to the service port on the KVM.
 3.  Identify the port (usually `/dev/ttyUSB0`).
 
 ### Installation & Running

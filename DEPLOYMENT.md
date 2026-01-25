@@ -5,7 +5,9 @@
 *   **Hardware**: Raspberry Pi (3B, 4, or 5 recommended) or any Linux server.
 *   **Software**: Docker and Docker Compose installed.
     *   *Raspberry Pi OS*: `curl -sSL https://get.docker.com | sh`
-*   **Connection**: The KVM hardware connected via serial (USB-to-Serial adapter recommended).
+*   **Connection**: USB-to-Serial adapter connected to the KVM.
+    *   **WARNING**: Must be **3.3V TTL** logic level. Do NOT use standard RS-232 cables.
+    *   **Pinout**: Tip/Ring/Sleeve must match manufacturer spec (Pin 3=TX, Pin 2=RX, Pin 1=GND).
 
 ## Configuration
 

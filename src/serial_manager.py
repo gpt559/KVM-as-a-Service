@@ -10,6 +10,10 @@ class SerialManager:
     """
     Hardware Abstraction Layer (HAL) for serial communication.
     Handles connection management and raw byte transmission.
+
+    HARDWARE NOTE: The TESmart KVM uses a 3.5mm service port with 3.3V TTL logic.
+    Do NOT use standard RS-232 (+/-12V) levels as this may damage the device.
+    Pinout: Pin 3 (TX), Pin 2 (RX), Pin 1 (GND).
     """
     def __init__(self, port: Optional[str] = None, baudrate: Optional[int] = None, timeout: float = 1.0):
         self.port = port or os.getenv('SERIAL_PORT', 'AUTO')
