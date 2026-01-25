@@ -4,6 +4,55 @@ A modern, web-based controller for TESmart KVM Switches, designed to run on a **
 
 It supports multiple TESmart protocols, including the newer HDC202/X24 series as well as legacy Enterprise and Consumer models.
 
+## 🏗️ Architecture
+
+The system is built as a layered architecture to ensure reliable hardware control over a stateless web protocol.
+
+```mermaid
+graph TD
+    User[User / Web Browser] -- "HTTP Request" --> API[REST API (FastAPI)]
+    API -- "Call Method" --> Controller[Controller Service]
+    
+    subgraph "Application Core"
+        Controller -- "Async Command" --> Queue[Command Queue]
+        Queue -- "Process" --> SerialMgr[Serial Manager]
+        SerialMgr -- "Thread Lock" --> SerialPort[Serial Port]
+    end
+    
+    SerialPort -- "UART / TTL (Hex Bytes)" --> KVM[TESmart KVM Switch]
+    KVM -- "Response (Hex Bytes)" --> SerialPort
+    SerialPort -- "Read" --> SerialMgr
+    SerialMgr -- "Update State" --> Controller
+    Controller -- "Status Update" --> API
+    API -- "JSON Response" --> User
+```
+
+```text
++----------------+      +------------------+      +---------------------+
+|   Web UI       | JSON |     REST API     | Call |  Controller Service |
+| (HTML/JS/Pico) | <--> |     (FastAPI)    | <--> | (Logic & State)     |
++----------------+      +------------------+      +---------------------+
+                                                            |
+                                                            v
+                                                  +---------------------+
+                                                  |    Serial Manager   |
+                                                  | (Thread-Safe I/O)   |
+                                                  +---------------------+
+                                                            |
+                                                            v
+                                                  +---------------------+
+                                                  |  /dev/ttyUSB0       |
+                                                  +---------------------+
+                                                            |
+                                                       TX / RX (TTL)
+                                                            |
+                                                            v
+                                                  +---------------------+
+                                                  | TESmart KVM Switch  |
+                                                  |     (Hardware)      |
+                                                  +---------------------+
+```
+
 ## 🚀 Getting Started
 
 ### Prerequisites

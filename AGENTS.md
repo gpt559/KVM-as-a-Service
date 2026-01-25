@@ -1,84 +1,120 @@
 # AGENTS.md
 
-## 🤖 Project Context for AI Agents
+> **This file defines the strict operational parameters for AI Agents and Developers working on the KVM-as-a-Service project.**
+> *Last Updated: 2026-01-25*
 
-**Project Name:** KVM-as-a-Service  
-**Description:** A FastAPI-based microservice that exposes a REST API and Web UI to control TESmart KVM switches via a serial connection (USB/DB9). It is optimized for deployment on Linux environments, specifically Raspberry Pi, allowing for switching input ports and controlling buzzer settings remotely.
+## 🤖 Project Identity & Stack
 
----
+**Role:** Senior Embedded Systems Engineer  
+**Core Objective:** Reliable control of TESmart KVM switches via UART/USB for data centers and home labs.
 
-## 🏗️ Architecture Overview
-
-The system follows a layered architecture:
-1.  **Hardware**: TESmart KVM Switch (connected via Serial).
-2.  **HAL (Hardware Abstraction Layer)**: `src/serial_manager.py` handles raw serial bytes.
-3.  **Controller Layer**: `src/controller_service.py` manages business logic, locking, and state.
-4.  **API Layer**: `src/main.py` (FastAPI) exposes HTTP endpoints.
-5.  **Frontend**: `static/` contains a simple HTML/JS interface.
-
----
-
-## 📂 Key File Structure
-
-- **`src/`**: Application source code.
-    - `main.py`: FastAPI entry point and route definitions.
-    - `controller_service.py`: Main logic for handling KVM commands.
-    - `serial_manager.py`: Low-level serial communication handling.
-    - `models.py`: Pydantic models for API request/response.
-    - `constants.py`: Hex codes and configuration constants.
-- **`ai/specs/`**: Detailed project specifications.
-    - `MVP/`: Specs for the Minimum Viable Product. **READ THESE BEFORE ARCHITECTURAL CHANGES.**
-    - `UI/`: Specs for the frontend interface.
-- **`tests/`**: Pytest test suite.
-- **`static/`**: Web assets (index.html, app.js).
-- **`docker-compose.yml`**: Definition for containerized deployment.
+| Layer | Technology |
+| :--- | :--- |
+| **Language** | Python 3.12+ |
+| **API Framework** | FastAPI |
+| **UI Framework** | Vanilla HTML5 / JavaScript (ES6+) / Pico.css |
+| **Hardware IO** | `pyserial` (3.3V TTL Logic) |
+| **Container** | Docker / Docker Compose |
+| **Testing** | `pytest` |
 
 ---
 
-## 💻 Development Guidelines
+## 🛑 Hardware Safety Rules (Strict 'Never' List)
 
-### Coding Standards
-- **Language**: Python 3.12+
-- **Style**: PEP 8.
-- **Type Hinting**: **Mandatory** for all function arguments and return values.
-- **Documentation**: All modules and functions must have docstrings.
-- **Async**: Use `async`/`await` for all FastAPI route handlers.
+1.  **Never send raw hex strings without validation.**
+    *   *Rule:* All outgoing packets must be constructed via `ProtocolHandler.build_packet()` which ensures correct headers (`AA BB`) and checksums.
+    *   *Why:* Malformed packets can hang the KVM's internal microcontroller.
 
-### Key Libraries
-- **FastAPI**: Web framework.
-- **Pydantic**: Data validation.
-- **PySerial**: Serial port communication.
+2.  **Never access the serial port without a Lock.**
+    *   *Rule:* All `serial.write` operations must be wrapped in `with self._lock:` context managers.
+    *   *Why:* Concurrent writes (e.g., from an async API request and a background status check) will interleave bytes and corrupt the protocol.
 
-### Error Handling
-- Use `HTTPException` in API routes.
-- Low-level serial errors should be caught in `serial_manager.py` and propagated as custom exceptions or boolean failures to the controller.
-- Ensure the serial port is properly locked (`threading.Lock` in `ControllerService`) to prevent concurrent access issues.
+3.  **Never reset the serial port while a command is in-flight.**
+    *   *Rule:* Check `self._pending_query` before attempting a reconnection or port reset.
+    *   *Why:* Resetting during a read/write cycle leaves the hardware in an undefined state.
 
----
+4.  **Never block the main thread for hardware IO.**
+    *   *Rule:* Serial reads must happen in the dedicated `_monitor_thread`. API routes must `await` results or return immediately; they must never call blocking `serial.read()`.
 
-## 🧪 Testing & Verification
-
-- **Framework**: `pytest`
-- **Mocking**: Serial connections **must** be mocked for unit tests. Do not attempt to open real serial ports during `pytest` execution.
-- **Running Tests**:
-  ```bash
-  pytest
-  ```
+5.  **Never assume the device is on `/dev/ttyUSB0`.**
+    *   *Rule:* Always support `AUTO` discovery or environment variable configuration (`SERIAL_PORT`).
 
 ---
 
-## 🚀 Deployment
+## 🔄 Concurrency Patterns
 
-- **Docker**: The primary deployment method. Supports `linux/amd64` and `linux/arm64` (Raspberry Pi).
-- **Build**: `docker-compose build`
-- **Run**: `docker-compose up -d`
-- **Serial Port**: The serial port path (e.g., `/dev/ttyUSB0`) is passed via `docker-compose.yml` environment variables. When running on Raspberry Pi, ensure the correct USB or GPIO serial device is targeted.
+The system bridges asynchronous Web API calls with synchronous serial hardware.
+
+1.  **Singleton Controller:**
+    *   `ControllerService` acts as the singleton gatekeeper. It is initialized once during FastAPI startup (`lifespan`).
+
+2.  **The "Command-Query" Split:**
+    *   **Commands (Fire-and-Forget):** Operations like switching ports (`switch_port`) are sent immediately under a lock. We do not wait for hardware confirmation to return HTTP 200, unless the protocol explicitly requires it.
+    *   **Queries (Request-Response):** Operations requiring data (e.g., `send_query`) use a `Future` pattern.
+        *   The API thread creates a `concurrent.futures.Future`.
+        *   The request is registered in `self._pending_query`.
+        *   The background `_monitor_thread` parses incoming bytes. If a packet matches the pending query, it completes the `Future`.
+        *   The API thread awaits the `Future` (with a timeout).
+
+3.  **Background Monitoring:**
+    *   A daemon thread (`_monitor_thread`) continuously reads from the serial port using `serial.read_existing()`. It parses full packets and dispatches them (e.g., resolving queries or updating internal state).
 
 ---
 
-## 🧠 AI Agent Workflow
+## 🛠️ Standard Commands
 
-1.  **Context**: Always check `ai/specs/MVP/tasks.md` to see the current progress of the project.
-2.  **Modification**: When modifying the HAL or Controller, ensure backward compatibility with the TESmart Hex protocol defined in `src/constants.py`.
-3.  **Frontend**: If modifying `static/`, ensure it calls the API endpoints defined in `src/main.py`.
-4.  **Documentation**: Update `README.md` or `DEPLOYMENT.md` if you change environment variables or deployment steps.
+### 🧪 Testing
+Run the full test suite. **Crucial:** Ensure no physical hardware is required.
+```bash
+pytest
+```
+
+### 🧹 Linting & Formatting
+Enforce PEP 8 and project standards.
+```bash
+ruff check .
+```
+
+### 🚀 Launching Hardware Simulator / Service
+Start the full stack (API + UI). In development, this runs the service. To simulate hardware without a device, ensure `SerialManager` is mocked or the environment is configured to use a virtual port (e.g., `socat`).
+```bash
+docker-compose up --build
+```
+
+### 🔌 Manual Hardware Verification
+To test physical connectivity without the API overhead:
+```bash
+python3 ai/specs/tesmart/ai-gen-controller.py
+```
+
+---
+
+## ⚠️ Error Handling Style
+
+1.  **Hardware vs. Logic Errors:**
+    *   **Logic Errors** (e.g., invalid port number) -> Raise `HTTPException(400)`.
+    *   **Hardware Errors** (e.g., Serial timeout, Disconnected) -> Raise `HTTPException(503 Service Unavailable)`.
+
+2.  **Propagation Strategy:**
+    *   Low-level `serial.SerialException` in `SerialManager` should be caught and logged.
+    *   The `ControllerService` should check `serial_manager.is_connected()` and attempt reconnection if needed.
+    *   If reconnection fails during a user request, the API must return `503` with a clear message: `"Hardware communication failed: [Detail]"`.
+
+3.  **Timeouts:**
+    *   Queries must have a strict timeout (default: 2.0s). If the hardware does not reply, the `Future` times out, and the API returns `503`. We do *not* hang the web request indefinitely.
+
+---
+
+## 🧪 Testing Philosophy
+
+1.  **Mock First:**
+    *   Unit tests (`tests/`) must **NEVER** attempt to open a real serial port.
+    *   Use `unittest.mock.MagicMock` to mock `serial.Serial`.
+    *   Test logic by asserting `mock_serial.write` was called with the correct bytes.
+    *   Simulate responses by side-effecting `mock_serial.read` to return prepared byte strings.
+
+2.  **Packet Validation:**
+    *   Tests must verify that generated packets pass `ProtocolHandler.validate_packet()`.
+
+3.  **Integration Testing:**
+    *   Integration tests (requiring real hardware) should be marked clearly (e.g., `@pytest.mark.integration`) and skipped by default in CI/CD environments.
