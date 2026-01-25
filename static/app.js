@@ -56,6 +56,15 @@ async function checkStatus() {
         const isHardwareOk = data.status === 'healthy';
         updateStatusDot(hwStatusDot, isHardwareOk);
 
+        // Update Active Port (State Sync from KVM Feedback)
+        if (data.active_port) {
+            const portRadio = document.getElementById(`port-${data.active_port}`);
+            if (portRadio && !portRadio.checked) {
+                portRadio.checked = true;
+                // Add a small visual pulse or log if needed, but simple sync is good
+            }
+        }
+
         // Update Config UI if changed externally (or initial load)
         if (data.protocol && data.protocol !== currentConfig.protocol) {
             currentConfig.protocol = data.protocol;

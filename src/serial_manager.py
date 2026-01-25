@@ -1,5 +1,7 @@
 import serial
-from typing import Optional
+import os
+import glob
+from typing import Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,24 +11,43 @@ class SerialManager:
     Hardware Abstraction Layer (HAL) for serial communication.
     Handles connection management and raw byte transmission.
     """
-    def __init__(self, port: str = '/dev/ttyUSB0', baudrate: int = 9600, timeout: float = 1.0):
-        self.port = port
-        self.baudrate = baudrate
+    def __init__(self, port: Optional[str] = None, baudrate: Optional[int] = None, timeout: float = 1.0):
+        self.port = port or os.getenv('SERIAL_PORT', 'AUTO')
+        self.baudrate = baudrate or int(os.getenv('BAUD_RATE', 9600))
         self.timeout = timeout
         self.connection: Optional[serial.Serial] = None
+
+    @staticmethod
+    def list_available_ports() -> List[str]:
+        """Lists available serial ports on the system."""
+        ports = glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*')
+        return sorted(ports)
 
     def connect(self) -> bool:
         """
         Opens the serial connection.
+        If port is 'AUTO', attempts to find and connect to the first available port.
         Returns True if connected successfully, False otherwise.
         Does not raise exception on failure.
         """
         if self.connection and self.connection.is_open:
             return True
 
+        target_port = self.port
+
+        if target_port == 'AUTO':
+            available_ports = self.list_available_ports()
+            if not available_ports:
+                logger.error("AUTO mode: No serial ports found (ttyUSB* or ttyACM*)")
+                return False
+            logger.info(f"AUTO mode: Found ports {available_ports}. Trying first one.")
+            target_port = available_ports[0]
+            # Update self.port so we know which one we connected to
+            self.port = target_port
+
         try:
             self.connection = serial.Serial(
-                port=self.port,
+                port=target_port,
                 baudrate=self.baudrate,
                 timeout=self.timeout,
                 bytesize=serial.EIGHTBITS,

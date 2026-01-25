@@ -15,12 +15,14 @@ services:
     privileged: true
     # devices:
       # Map the host serial port to the container.
-      # UPDATE THIS PATH based on your actual hardware connection (e.g., /dev/ttyS0, /dev/ttyACM0)
+      # For "plug-and-play" (AUTO), we rely on 'privileged: true' to access /dev/ttyUSB*
+      # If you prefer explicit mapping, uncomment below and set the correct path:
       # - /dev/ttyUSB0:/dev/ttyUSB0
     environment:
       # Configure the application to use the mapped serial port
-      - SERIAL_PORT=/dev/ttyUSB0
-      - BAUD_RATE=115200
+      # Set to "AUTO" to automatically find the first available /dev/ttyUSB* or /dev/ttyACM*
+      - SERIAL_PORT=AUTO
+      - BAUD_RATE=9600
     restart: always
     logging:
       driver: "json-file"

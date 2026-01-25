@@ -17,6 +17,8 @@ class ControllerService:
         self._lock = threading.Lock()
         self.current_protocol = Protocol.HDC202_X24
         self.current_terminator: Literal["none", "cr", "lf", "crlf"] = "none"
+        self.active_port: Optional[int] = None
+        
         # Initialize serial with correct baudrate
         if self.serial_manager.baudrate != 9600:
              self.serial_manager.baudrate = 9600
@@ -84,7 +86,10 @@ class ControllerService:
     def _monitor_serial(self):
         """
         Background thread to monitor serial port for incoming data.
+        Parses async feedback from KVM to update state.
         """
+        buffer = b""
+        
         while True:
             try:
                 # Polling interval to avoid CPU spin
@@ -108,6 +113,36 @@ class ControllerService:
                              data = self.serial_manager.read(conn.in_waiting)
                              if data:
                                 self._log_serial_event("RECEIVED (Async)", data)
+                                buffer += data
+                                
+                                # Process Buffer
+                                # Simple parser for AA BB 82 ... (Status Update)
+                                # Packet: AA BB 82 D1 D2 CS (6 bytes)
+                                while len(buffer) >= 6:
+                                    # Look for Header
+                                    if buffer[0] == 0xAA and buffer[1] == 0xBB:
+                                        # Check Command
+                                        cmd = buffer[2]
+                                        if cmd == 0x82:
+                                            # Async Status Report
+                                            # Byte 4 (index 4) seems to be Port Index (0=PC1, 1=PC2)
+                                            port_idx = buffer[4]
+                                            new_port = port_idx + 1
+                                            
+                                            if self.active_port != new_port:
+                                                self.active_port = new_port
+                                                logger.info(f"KVM Feedback: Switched to Port {self.active_port}")
+                                            
+                                            # Consume packet
+                                            buffer = buffer[6:]
+                                        else:
+                                            # Unknown command or query response caught by monitor
+                                            # Just consume it to prevent buffer growth
+                                            buffer = buffer[6:]
+                                    else:
+                                        # Skip byte to find header
+                                        buffer = buffer[1:]
+                                        
             except Exception as e:
                 logger.error(f"Error in serial monitor: {e}")
 
@@ -302,5 +337,7 @@ class ControllerService:
             "port": self.serial_manager.port,
             "baudrate": self.serial_manager.baudrate,
             "protocol": self.current_protocol,
-            "terminator": self.current_terminator
+            "terminator": self.current_terminator,
+            "active_port": self.active_port,
+            "available_ports": self.serial_manager.list_available_ports()
         }
