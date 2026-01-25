@@ -119,8 +119,10 @@ class HDC202X24Commands:
     CMD_QUERY_FAN           = 0x8B
     CMD_QUERY_AUDIO_FOLLOW  = 0x8C
     CMD_QUERY_AUDIO_CHANNEL = 0x8D
+    CMD_QUERY_AUTO_DETECT   = 0x8E
+    CMD_QUERY_AUTO_SCAN     = 0x8F
 
-# Map protocols to their command classes
+    # Map protocols to their command classes
 PROTOCOL_MAP = {
     Protocol.ENTERPRISE: EnterpriseCommands,
     Protocol.CONSUMER_A: ConsumerACommands,
