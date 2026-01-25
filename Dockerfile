@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy the requirements file into the container at /app
 COPY requirements.txt .
 
-# Install uv
-RUN pip install uv==0.9.26
+# Upgrade pip and install uv
+RUN pip install --upgrade pip && pip install uv==0.9.26
 
 # Install any needed packages specified in requirements.txt using uv
 RUN uv pip install --system --no-cache-dir -r requirements.txt
