@@ -3,6 +3,7 @@ import logging
 import sys
 from src.serial_manager import SerialManager
 from src.constants import HDC202X24Commands
+from src.protocol_handler import ProtocolHandler
 
 # Configure simple logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -35,7 +36,7 @@ def verify_connection():
         print("\n[Test 1] The 'Golden Test' (RX Check)")
         print("Purpose: Verifies the KVM can talk back to us.")
         
-        cmd = HDC202X24Commands.QUERY_MONITOR_COUNT
+        cmd = ProtocolHandler.build_packet(HDC202X24Commands.CMD_QUERY_MONITOR_COUNT, [0x00, 0x00])
         print(f"Sending:  {cmd.hex(' ').upper()}")
         
         mgr.reset_input_buffer()
@@ -74,15 +75,17 @@ def verify_connection():
         print("Purpose: Verifies we can talk to the KVM (even if RX is broken).")
         
         print("\n> Muting Buzzer...")
-        print(f"Sending: {HDC202X24Commands.BUZZER_OFF.hex(' ').upper()}")
-        mgr.write(HDC202X24Commands.BUZZER_OFF)
+        buzzer_off = ProtocolHandler.build_packet(HDC202X24Commands.CMD_BUZZER, [0x00, 0x00])
+        print(f"Sending: {buzzer_off.hex(' ').upper()}")
+        mgr.write(buzzer_off)
         print("(Listen for silence)")
         
         time.sleep(1.5)
         
         print("\n> Enabling Buzzer...")
-        print(f"Sending: {HDC202X24Commands.BUZZER_ON.hex(' ').upper()}")
-        mgr.write(HDC202X24Commands.BUZZER_ON)
+        buzzer_on = ProtocolHandler.build_packet(HDC202X24Commands.CMD_BUZZER, [0x00, 0x01])
+        print(f"Sending: {buzzer_on.hex(' ').upper()}")
+        mgr.write(buzzer_on)
         print("(Listen for beep)")
         
         print("\n✅ Sequence complete.")

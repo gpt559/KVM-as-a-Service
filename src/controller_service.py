@@ -2,7 +2,7 @@ import threading
 import logging
 import time
 from concurrent.futures import Future, TimeoutError
-from typing import Literal, Optional, Dict, Any
+from typing import Literal, Optional, Dict, Any, cast
 
 from src.serial_manager import SerialManager
 from src.protocol_handler import ProtocolHandler
@@ -51,7 +51,7 @@ class ControllerService:
         if terminator:
             if terminator not in ["none", "cr", "lf", "crlf"]:
                 raise ValueError(f"Invalid terminator: {terminator}")
-            self.current_terminator = terminator
+            self.current_terminator = cast(Literal["none", "cr", "lf", "crlf"], terminator)
             logger.info(f"Terminator updated to: {self.current_terminator}")
 
         if baudrate:

@@ -2,6 +2,7 @@ import time
 import logging
 from src.serial_manager import SerialManager
 from src.constants import HDC202X24Commands
+from src.protocol_handler import ProtocolHandler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,25 +28,25 @@ def test_commands():
         
         # Test 1: Switch ALL to PC1 (Current implementation)
         logger.info("1. Sending SWITCH_ALL_PC1 (0x03 0x00 0x00)")
-        cmd = HDC202X24Commands.SWITCH_PORT_1
+        cmd = ProtocolHandler.build_packet(HDC202X24Commands.CMD_SWITCH_PORT, [0x00, 0x00])
         serial.write(cmd)
         time.sleep(3) # Wait for user to observe
         
         # Test 2: Switch ALL to PC2
         logger.info("2. Sending SWITCH_ALL_PC2 (0x03 0x00 0x01)")
-        cmd = HDC202X24Commands.SWITCH_PORT_2
+        cmd = ProtocolHandler.build_packet(HDC202X24Commands.CMD_SWITCH_PORT, [0x00, 0x01])
         serial.write(cmd)
         time.sleep(3)
 
         # Test 3: Switch OUTPUT 1 to PC1 (Alternative)
         logger.info("3. Sending SWITCH_OUT1_PC1 (0x03 0x01 0x00)")
-        cmd = HDC202X24Commands.SWITCH_OUT1_PC1
+        cmd = ProtocolHandler.build_packet(HDC202X24Commands.CMD_SWITCH_PORT, [0x01, 0x00])
         serial.write(cmd)
         time.sleep(3)
 
         # Test 4: Switch OUTPUT 1 to PC2 (Alternative)
         logger.info("4. Sending SWITCH_OUT1_PC2 (0x03 0x01 0x01)")
-        cmd = HDC202X24Commands.SWITCH_OUT1_PC2
+        cmd = ProtocolHandler.build_packet(HDC202X24Commands.CMD_SWITCH_PORT, [0x01, 0x01])
         serial.write(cmd)
         time.sleep(3)
         

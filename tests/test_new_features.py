@@ -9,7 +9,7 @@ import pytest
 mock_serial = MagicMock()
 mock_controller_instance = ControllerService(mock_serial)
 mock_controller_instance.current_protocol = Protocol.HDC202_X24
-mock_controller_instance.send_query = MagicMock(return_value="AA BB CC")
+mock_controller_instance.send_query = MagicMock(return_value="AA BB CC") # type: ignore
 
 @pytest.fixture
 def client_override():
