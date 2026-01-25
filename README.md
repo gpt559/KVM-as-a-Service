@@ -1,6 +1,9 @@
 # KVM-as-a-Service
 
 [![CI](https://github.com/gpt559/KVM-as-a-Service/actions/workflows/ci.yml/badge.svg)](https://github.com/gpt559/KVM-as-a-Service/actions/workflows/ci.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 A modern, web-based controller for TESmart KVM Switches, designed to run on a **Raspberry Pi** or any Linux environment. This project exposes a REST API and a web interface to control input switching, buzzer settings, and advanced features over a serial connection.
 
