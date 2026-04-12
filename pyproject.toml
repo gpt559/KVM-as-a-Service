@@ -4,10 +4,10 @@ version = "0.1.0"
 description = "Reliable control of TESmart KVM switches via UART/USB"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.100.0",
-    "uvicorn>=0.20.0",
+    "fastapi>=0.135.3",
+    "uvicorn>=0.44.0",
     "pyserial>=3.5",
-    "pydantic>=2.0.0",
+    "pydantic>=2.12.5",
 ]
 
 [build-system]
@@ -16,10 +16,10 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "httpx>=0.27.0",
-    "ruff==0.15.9",
-    "ty==0.0.28",
+    "pytest>=9.0.3",
+    "httpx>=0.28.1",
+    "ruff==0.15.10",
+    "ty==0.0.29",
 ]
 
 [tool.ruff]
