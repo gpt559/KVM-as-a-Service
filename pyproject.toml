@@ -18,8 +18,8 @@ build-backend = "hatchling.build"
 dev = [
     "pytest>=9.0.3",
     "httpx>=0.28.1",
-    "ruff==0.15.21",
-    "ty==0.0.58",
+    "ruff==0.15.22",
+    "ty==0.0.61",
 ]
 
 [tool.ruff]
