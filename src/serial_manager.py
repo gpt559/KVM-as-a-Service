@@ -63,7 +63,7 @@ class SerialManager:
             )
             logger.info(f"Connected to serial port {self.port} (8-N-1)")
             return True
-        except serial.SerialException as e:
+        except (serial.SerialException, OSError) as e:
             logger.error(f"Failed to connect to serial port {self.port}: {e}")
             self.connection = None
             return False
@@ -95,11 +95,11 @@ class SerialManager:
             self.connection.write(data)
             self.connection.flush()
             logger.debug(f"Wrote to serial: {data!r}")
-        except serial.SerialException as e:
+        except (serial.SerialException, OSError) as e:
             logger.error(f"Failed to write to serial port: {e}")
             # Invalidate connection on failure
             self.disconnect()
-            raise
+            raise serial.SerialException(str(e))
 
     def is_connected(self) -> bool:
         """Checks if the serial connection is currently open."""
@@ -139,7 +139,7 @@ class SerialManager:
             if data:
                 logger.debug(f"Read from serial: {data.hex(' ').upper()}")
             return data
-        except serial.SerialException as e:
+        except (serial.SerialException, OSError) as e:
             logger.error(f"Failed to read from serial port: {e}")
             self.disconnect()
-            raise
+            raise serial.SerialException(str(e))
