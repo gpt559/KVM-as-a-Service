@@ -1,5 +1,7 @@
+import time
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+from concurrent.futures import Future
 from src.controller_service import ControllerService
 from src.serial_manager import SerialManager
 from src.constants import EnterpriseCommands, ConsumerACommands, ConsumerBCommands, Protocol, HDC202X24Commands, SV04Commands
@@ -411,3 +413,182 @@ def test_sv04_validator_rejects_corrupt_packets():
     assert not ProtocolHandler.validate_sv04_packet(b'\xAA\x00\x57')      # bad checksum
     assert not ProtocolHandler.validate_sv04_packet(b'\xAA\x00')          # too short
     assert not ProtocolHandler.validate_sv04_packet(b'\xAA\x00\x56\x00')  # too long
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Bug-1: AUTO port discovery must never permanently pin itself
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestAutoDiscovery:
+    """
+    SerialManager._port_spec stays 'AUTO' for the life of the process.
+    connect() must re-run discovery on every call when _port_spec is 'AUTO',
+    and must only update self.port after a successful open.
+    """
+
+    def test_auto_reruns_discovery_after_no_ports_found(self):
+        """
+        When AUTO finds no ports on the first call it must not pin anything;
+        a later call that discovers a port must succeed and update self.port.
+        """
+        manager = SerialManager(port='AUTO')
+        assert manager._port_spec == 'AUTO'
+
+        # First attempt: nothing plugged in yet.
+        with patch.object(SerialManager, 'list_available_ports', return_value=[]):
+            result = manager.connect()
+
+        assert result is False
+        assert manager._port_spec == 'AUTO'  # spec not pinned
+        assert manager.port == 'AUTO'        # nothing resolved yet
+
+        # Second attempt: device has appeared.
+        mock_serial = MagicMock()
+        mock_serial.is_open = True
+        with patch.object(SerialManager, 'list_available_ports',
+                          return_value=['/dev/ttyUSB1']), \
+             patch('serial.Serial', return_value=mock_serial):
+            result = manager.connect()
+
+        assert result is True
+        assert manager.port == '/dev/ttyUSB1'
+        assert manager._port_spec == 'AUTO'  # still AUTO — never pinned
+
+    def test_auto_follows_device_after_re_enumeration(self):
+        """
+        When a device disconnects and re-enumerates at a different node,
+        AUTO discovery must find the new path, not retry the stale one.
+        """
+        manager = SerialManager(port='AUTO')
+
+        mock_usb0 = MagicMock()
+        mock_usb0.is_open = True
+
+        # First connect: device at USB0.
+        with patch.object(SerialManager, 'list_available_ports',
+                          return_value=['/dev/ttyUSB0']), \
+             patch('serial.Serial', return_value=mock_usb0):
+            assert manager.connect() is True
+        assert manager.port == '/dev/ttyUSB0'
+
+        # Device disconnects and re-enumerates at USB1.
+        manager.disconnect()
+
+        mock_usb1 = MagicMock()
+        mock_usb1.is_open = True
+
+        with patch.object(SerialManager, 'list_available_ports',
+                          return_value=['/dev/ttyUSB1']), \
+             patch('serial.Serial', return_value=mock_usb1):
+            assert manager.connect() is True
+
+        assert manager.port == '/dev/ttyUSB1'
+        assert manager._port_spec == 'AUTO'
+
+    def test_explicit_port_is_never_overridden_by_discovery(self):
+        """
+        An explicit SERIAL_PORT value must be used directly; discovery is
+        never consulted and self.port must match the configured path.
+        """
+        manager = SerialManager(port='/dev/ttyUSB0')
+        assert manager._port_spec == '/dev/ttyUSB0'
+
+        mock_serial = MagicMock()
+        mock_serial.is_open = True
+
+        # list_available_ports would return a different path — must be ignored.
+        with patch.object(SerialManager, 'list_available_ports',
+                          return_value=['/dev/ttyUSB99']), \
+             patch('serial.Serial', return_value=mock_serial) as mock_cls:
+            assert manager.connect() is True
+
+        # serial.Serial must have been called with the explicit path, not USB99.
+        call_port = mock_cls.call_args[1].get('port') or mock_cls.call_args[0][0]
+        assert call_port == '/dev/ttyUSB0'
+        assert manager.port == '/dev/ttyUSB0'
+        assert manager._port_spec == '/dev/ttyUSB0'
+
+    def test_check_status_never_reports_auto_once_connected(self):
+        """
+        check_status() must return a real device path for 'port', not the
+        literal string 'AUTO', once the port has been successfully opened.
+        """
+        manager = SerialManager(port='AUTO')
+
+        mock_serial = MagicMock()
+        mock_serial.is_open = True
+        mock_serial.in_waiting = 0
+
+        with patch.object(SerialManager, 'list_available_ports',
+                          return_value=['/dev/ttyUSB0']), \
+             patch('serial.Serial', return_value=mock_serial):
+            manager.connect()
+
+        c = ControllerService(manager)
+        try:
+            status = c.check_status()
+            assert status['port'] != 'AUTO', (
+                "check_status() returned 'AUTO' for port — "
+                "self.port was not updated on successful connect"
+            )
+            assert status['port'] == '/dev/ttyUSB0'
+        finally:
+            c._shutdown_event.set()
+            c._monitor_thread.join(timeout=1.0)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Bug-2: background reconnect must not fire while a command is in-flight
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestBackgroundReconnect:
+    """
+    The _monitor_serial loop must skip reconnect attempts while
+    _pending_query or _pending_echo is set (AGENTS.md rule: never reset
+    the serial port while a command is in-flight).
+    """
+
+    def test_reconnect_skipped_while_pending_query(
+        self, controller, mock_serial_manager
+    ):
+        """connect() must not be called while _pending_query is set."""
+        # Disable the 5-second throttle so every iteration would attempt
+        # a reconnect if the guard were absent.
+        controller._reconnect_interval = 0.0
+
+        future: Future = Future()
+        with controller._query_lock:
+            controller._pending_query = {'cmd_id': 0x84, 'future': future}
+
+        # Now make the port look disconnected so the reconnect branch is entered.
+        mock_serial_manager.is_connected.return_value = False
+
+        # Allow several monitor-thread iterations to run (50 ms each).
+        time.sleep(0.25)
+
+        mock_serial_manager.connect.assert_not_called()
+
+        # Cleanup: clear the pending state so the thread can exit cleanly.
+        future.cancel()
+        with controller._query_lock:
+            controller._pending_query = None
+
+    def test_reconnect_skipped_while_pending_echo(
+        self, controller, mock_serial_manager
+    ):
+        """connect() must not be called while _pending_echo is set."""
+        controller._reconnect_interval = 0.0
+
+        future: Future = Future()
+        with controller._query_lock:
+            controller._pending_echo = {'frame': b'\xAA\x00\x56', 'future': future}
+
+        mock_serial_manager.is_connected.return_value = False
+
+        time.sleep(0.25)
+
+        mock_serial_manager.connect.assert_not_called()
+
+        future.cancel()
+        with controller._query_lock:
+            controller._pending_echo = None

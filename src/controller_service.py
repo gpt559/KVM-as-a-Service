@@ -28,6 +28,10 @@ class ControllerService:
         self._pending_echo: Optional[Dict[str, Any]] = None # {'frame': bytes, 'future': Future}
         self._shutdown_event = threading.Event()
 
+        # Seconds between background reconnect attempts in _monitor_serial.
+        # Exposed as an attribute so tests can set it to 0 to disable throttling.
+        self._reconnect_interval: float = 5.0
+
 
         # Start background monitor thread
         self._monitor_thread = threading.Thread(target=self._monitor_serial, daemon=True)
@@ -95,11 +99,67 @@ class ControllerService:
         """
         Background thread to monitor serial port for incoming data.
         Parses async feedback from KVM and handles query responses.
+        Also performs periodic reconnection when the port is down, so an
+        unattended deployment self-heals after a USB glitch without a
+        container restart.
         """
         buffer = b""
-        
+        _last_reconnect_attempt: float = 0.0
+        # Track whether the port was connected at the last check so we log
+        # the lost/restored transitions exactly once rather than every 50 ms.
+        _was_connected: bool = self.serial_manager.is_connected()
+
         while not self._shutdown_event.is_set():
             try:
+                # 0. Background reconnect: heal a disconnected port.
+                #
+                #    Throttled to self._reconnect_interval seconds (default 5 s)
+                #    so a days-long outage does not spam the log ring.
+                #    Always skipped when a command is in-flight — resetting the
+                #    port mid-query would leave the hardware in an undefined
+                #    state (AGENTS.md rule).
+                #
+                #    Locking choice: connect() does no serial writes, so we do
+                #    NOT hold self._lock here.  Holding _lock across a slow USB
+                #    open (up to ~1 s) would stall every concurrent API write
+                #    for the entire enumeration window, which is worse than the
+                #    theoretical race of two threads both calling connect() at
+                #    once (the second call sees is_open==True and returns
+                #    immediately).
+                if not self.serial_manager.is_connected():
+                    if _was_connected:
+                        logger.warning(
+                            "Serial port disconnected; "
+                            "background reconnect will begin."
+                        )
+                        _was_connected = False
+
+                    with self._query_lock:
+                        in_flight = (
+                            self._pending_query is not None
+                            or self._pending_echo is not None
+                        )
+
+                    if not in_flight:
+                        now = time.monotonic()
+                        if now - _last_reconnect_attempt >= self._reconnect_interval:
+                            _last_reconnect_attempt = now
+                            logger.debug("Background: attempting serial reconnect.")
+                            if self.serial_manager.connect():
+                                logger.info(
+                                    "Background: serial port reconnected on "
+                                    f"{self.serial_manager.port}."
+                                )
+                                _was_connected = True
+                                buffer = b""  # discard stale bytes from old session
+
+                    time.sleep(0.05)
+                    continue
+
+                # Port is connected; record the transition if we were down.
+                if not _was_connected:
+                    _was_connected = True
+
                 # 1. Read available data (Non-blocking)
                 new_data = self.serial_manager.read_existing()
                 if new_data:
@@ -121,7 +181,7 @@ class ControllerService:
                         break
 
                     packet, remaining_buffer = ProtocolHandler.try_parse_packet(buffer)
-                    
+
                     if packet:
                         # Valid packet found!
                         self._log_serial_event("PACKET PARSED", packet)
@@ -133,10 +193,10 @@ class ControllerService:
                         # So we just update buffer and break to wait for more data
                         buffer = remaining_buffer
                         break
-                
+
                 # Sleep to prevent CPU spin
                 time.sleep(0.05)
-                                        
+
             except Exception as e:
                 logger.error(f"Error in serial monitor: {e}")
                 time.sleep(1) # Backoff on error

@@ -1,0 +1,65 @@
+[Unit]
+Description=KVM-as-a-Service Docker Compose stack
+Documentation=https://github.com/gpt559/KVM-as-a-Service
+
+# --build is deliberately omitted from ExecStart:
+#   1. Docker starts before DHCP/DNS is settled; registry pulls would fail.
+#   2. Building on a Pi is slow and significantly delays boot.
+#   3. A failed build leaves nothing running; the existing image boots fine offline.
+# Always run `docker compose build` manually before deploying a new version.
+
+# This unit is belt-and-braces on top of `restart: always` in docker-compose.yml.
+# What `restart: always` cannot do on its own:
+#   - Re-apply changes to docker-compose.yml (the old container config keeps running
+#     until the stack is explicitly brought up again).
+#   - Recover a container that was left manually stopped, e.g. after running
+#     probe_switch.py, which requires `docker stop kvm-service` to free /dev/ttyUSB0.
+# This unit runs `docker compose up -d` at every boot so both cases are handled.
+
+After=docker.service
+Requires=docker.service
+
+# Retry policy for the initial `docker compose up -d`: allow up to 3 attempts
+# in a 5-minute window before giving up (prevents an infinite restart loop on
+# persistent failures such as a missing image).
+StartLimitBurst=3
+StartLimitIntervalSec=300
+
+# network-online.target is intentionally NOT listed here.
+# `docker compose up -d` on a pre-built local image contacts no registry and
+# needs no network.  Depending on network-online.target would add ~15-30 s
+# to boot for zero benefit.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+WorkingDirectory=/home/gtaylor/coding/KVM-as-a-Service
+
+# Run as the repo owner, who is a member of the `docker` group.
+# This avoids running docker as root on the host.  Note that the container
+# itself still uses `privileged: true` (set in docker-compose.yml) in order
+# to access /dev/ttyUSB0 inside the container — that is a container-level
+# privilege grant, not a host-level one.
+User=gtaylor
+Group=gtaylor
+
+# Use the absolute path to docker: systemd has a minimal PATH that does not
+# include /usr/bin unless specified.  The Compose v2 plugin lives at
+# /usr/libexec/docker/cli-plugins/docker-compose and is invoked through the
+# docker CLI plugin mechanism, not called directly.
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose stop
+
+# Give the containers enough time to pull from cache and start.
+TimeoutStartSec=120
+
+# Retry up to 3 times in 5 minutes if `docker compose up -d` returns non-zero
+# (e.g. daemon not yet ready on first boot).  After that, manual intervention
+# is required.  This does not cause a restart loop because RemainAfterExit=yes
+# means the unit stays "active" once ExecStart succeeds.
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

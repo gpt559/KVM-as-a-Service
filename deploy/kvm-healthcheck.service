@@ -1,0 +1,19 @@
+[Unit]
+Description=KVM-as-a-Service health watchdog (single check run)
+# Invoked by kvm-healthcheck.timer every 5 minutes.
+# See health-watchdog.sh for the full throttling and rate-limiting logic.
+# Logs are visible via: journalctl -u kvm-healthcheck
+
+[Service]
+Type=oneshot
+User=gtaylor
+Group=gtaylor
+
+# systemd creates /var/lib/kvm-healthcheck owned by gtaylor before the script
+# runs, so the script can write its state files without root.
+StateDirectory=kvm-healthcheck
+
+ExecStart=/home/gtaylor/coding/KVM-as-a-Service/deploy/health-watchdog.sh
+
+# Do not restart on failure — the timer will retry on the next interval.
+Restart=no

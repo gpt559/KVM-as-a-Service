@@ -1,0 +1,16 @@
+[Unit]
+Description=KVM-as-a-Service health watchdog timer
+# Fires kvm-healthcheck.service every 5 minutes.
+# With MAX_CONSECUTIVE=3 in health-watchdog.sh, the container must be
+# continuously unhealthy for ~15 minutes before a restart is triggered.
+
+[Timer]
+# First run 5 minutes after boot (gives the container time to start).
+OnBootSec=5min
+# Subsequent runs every 5 minutes.
+OnUnitActiveSec=5min
+# Allow up to 30 s of jitter to avoid thundering-herd with other timers.
+AccuracySec=30
+
+[Install]
+WantedBy=timers.target
