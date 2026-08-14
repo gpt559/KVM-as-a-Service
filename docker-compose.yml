@@ -14,10 +14,20 @@ services:
       - "8000:8000"
     privileged: true
     # devices:
-      # Map the host serial port to the container.
-      # For "plug-and-play" (AUTO), we rely on 'privileged: true' to access /dev/ttyUSB*
-      # If you prefer explicit mapping, uncomment below and set the correct path:
+      # NOT RECOMMENDED for this use case. `devices:` pins a specific device node at
+      # container creation time; if /dev/ttyUSB0 doesn't exist yet, the container fails
+      # to start. It also defeats AUTO discovery when the adapter re-enumerates as
+      # ttyUSB1 after a replug. Use the bind mount below instead.
       # - /dev/ttyUSB0:/dev/ttyUSB0
+    # Bind-mount the host /dev so the container sees a live view including hotplug events.
+    # Without this, the container gets a static /dev snapshot from container creation time.
+    # On a Raspberry Pi (slow USB enumeration) or when replugging adapters, the FT232R
+    # can enumerate *after* the container starts — meaning /dev/ttyUSB0 exists on the host
+    # but is invisible inside the container. This mount makes AUTO discovery and the
+    # background reconnect loop in controller_service.py able to see late-arriving devices.
+    # Keep `privileged: true` above to supply the cgroup device permissions.
+    volumes:
+      - /dev:/dev
     environment:
       # Configure the application to use the mapped serial port
       # Set to "AUTO" to automatically find the first available /dev/ttyUSB* or /dev/ttyACM*
