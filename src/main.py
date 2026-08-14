@@ -356,11 +356,28 @@ async def get_status(
         
     return status_info
 
+class NoCacheStaticFiles(StaticFiles):
+    """StaticFiles subclass that adds Cache-Control: no-cache to every response.
+
+    FastAPI's default StaticFiles sends ETag and Last-Modified but no Cache-Control,
+    so browsers apply heuristic freshness to subresources (e.g. app.js) and may skip
+    revalidation entirely — even after index.html has itself been revalidated.
+    'no-cache' means "revalidate before use", not "do not store": the existing ETag /
+    Last-Modified still produce cheap 304s, costing one conditional request per asset
+    rather than a full re-download. Do not use no-store; that would break 304s.
+    """
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # Mount static files (Frontend UI)
-# Mount at root "/" but be careful not to override API routes. 
+# Mount at root "/" but be careful not to override API routes.
 # FastAPI checks routes in order, but StaticFiles on "/" acts as a catch-all.
 # A common pattern is to mount static on "/static" or "/ui", but to serve index.html at root,
 # we can mount it at root and it will serve index.html for "/".
 # However, explicit API routes defined above/below will take precedence if they match specific paths.
 # Since our API is at /api/v1, there is no conflict.
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", NoCacheStaticFiles(directory="static", html=True), name="static")

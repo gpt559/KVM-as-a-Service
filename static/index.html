@@ -116,6 +116,9 @@
     <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
 
-    <script src="app.js"></script>
+    <!-- ?v=2 is a cache-busting query string. index.html revalidates on every load
+         (via ETag), but browsers may apply heuristic freshness to subresources and
+         skip revalidation of app.js entirely. Bump the version whenever app.js changes. -->
+    <script src="app.js?v=2"></script>
 </body>
 </html>

@@ -50,14 +50,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /**
  * Poll the API for hardware status and sync UI state.
+ *
+ * Two separate try/catch blocks are intentional: keeping the fetch in its own
+ * try means a DOM/JS error (e.g. a missing element from an HTML/JS version
+ * mismatch) cannot masquerade as "Connection Lost" — which was the original
+ * symptom of the stale-cache bug. setInterval keeps calling checkStatus, so
+ * the polling loop survives either failure path.
  */
 async function checkStatus() {
+    // Fetch phase: only network and API-level errors are caught here.
+    let data;
     try {
         const response = await fetch(`${API_BASE}/status`);
         if (!response.ok) throw new Error('API Error');
+        data = await response.json();
+    } catch (error) {
+        console.error('Status check failed:', error);
+        updateStatusDot(apiStatusDot, false);
+        updateStatusDot(hwStatusDot, false);
+        if (statusMessage) {
+            statusMessage.innerHTML = `<p><small style="color:red">Connection Lost</small></p>`;
+        }
+        isConnected = false;
+        enableControls(false);
+        return;
+    }
 
-        const data = await response.json();
-
+    // DOM update phase: API is reachable — update the UI.
+    // A separate catch here surfaces a rendering failure as a UI problem rather
+    // than a hardware problem, and leaves isConnected/controls untouched.
+    try {
         updateStatusDot(apiStatusDot, true);
         isConnected = true;
 
@@ -79,20 +101,21 @@ async function checkStatus() {
 
         // Reflect connection details read-only. These come from env vars via the backend;
         // we never let the UI write them back (wrong baud wedges the hardware).
-        if (data.port)     serialPortEl.textContent = data.port;
-        if (data.baudrate) baudRateEl.textContent = data.baudrate;
+        if (serialPortEl && data.port)     serialPortEl.textContent = data.port;
+        if (baudRateEl && data.baudrate)   baudRateEl.textContent = data.baudrate;
 
-        statusMessage.innerHTML = `<p><small>System: ${data.status}</small></p>`;
+        if (statusMessage) statusMessage.innerHTML = `<p><small>System: ${data.status}</small></p>`;
 
         enableControls(true);
 
-    } catch (error) {
-        console.error('Status check failed:', error);
-        updateStatusDot(apiStatusDot, false);
-        updateStatusDot(hwStatusDot, false);
-        statusMessage.innerHTML = `<p><small style="color:red">Connection Lost</small></p>`;
-        isConnected = false;
-        enableControls(false);
+    } catch (uiError) {
+        // DOM/JS error — the API is reachable but page rendering failed.
+        // Most likely cause: a cached app.js against a new index.html (element mismatch).
+        console.error('UI update error:', uiError);
+        if (statusMessage) {
+            statusMessage.innerHTML = `<p><small style="color:orange">UI error — try a hard refresh (Ctrl+Shift+R)</small></p>`;
+        }
+        // Do not flip isConnected or disable controls — the hardware link is fine.
     }
 }
 
@@ -165,6 +188,7 @@ function setPendingVisual(portId, pending) {
 // Helpers
 
 function updateStatusDot(element, isOnline) {
+    if (!element) return;
     if (isOnline) {
         element.classList.add('status-online');
         element.classList.remove('status-offline');
