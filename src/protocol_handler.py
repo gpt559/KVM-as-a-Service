@@ -40,6 +40,35 @@ class ProtocolHandler:
         checksum = ProtocolHandler.calculate_checksum(raw_packet)
         return raw_packet + bytes([checksum])
 
+    SV04_HEADER = 0xAA
+    SV04_CHECKSUM_TARGET = 0x100
+
+    @staticmethod
+    def build_sv04_packet(port_id: int) -> bytes:
+        """
+        Builds an SV04 USB switch input-select packet.
+
+        Structure: 0xAA [Port-1] [CS], where CS is chosen so the three bytes
+        sum to exactly 0x100. This reproduces the vendor table:
+            Input 1 -> AA 00 56    Input 3 -> AA 02 54
+            Input 2 -> AA 01 55    Input 4 -> AA 03 53
+        """
+        if not (1 <= port_id <= 4):
+            raise ValueError(f"SV04 supports inputs 1-4, got {port_id}.")
+
+        index = port_id - 1
+        checksum = ProtocolHandler.SV04_CHECKSUM_TARGET - ProtocolHandler.SV04_HEADER - index
+        return bytes([ProtocolHandler.SV04_HEADER, index, checksum])
+
+    @staticmethod
+    def validate_sv04_packet(packet: bytes) -> bool:
+        """Validates an SV04 packet: 3 bytes, 0xAA header, bytes sum to 0x100."""
+        return (
+            len(packet) == 3
+            and packet[0] == ProtocolHandler.SV04_HEADER
+            and sum(packet) == ProtocolHandler.SV04_CHECKSUM_TARGET
+        )
+
     @staticmethod
     def validate_packet(packet: bytes) -> bool:
         """

@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 from src.controller_service import ControllerService
 from src.serial_manager import SerialManager
-from src.constants import EnterpriseCommands, ConsumerACommands, ConsumerBCommands, Protocol, HDC202X24Commands
+from src.constants import EnterpriseCommands, ConsumerACommands, ConsumerBCommands, Protocol, HDC202X24Commands, SV04Commands
 from src.protocol_handler import ProtocolHandler
 
 @pytest.fixture
@@ -211,14 +211,203 @@ def test_send_query_unsupported(controller):
     with pytest.raises(NotImplementedError):
         controller.send_query("buzzer")
 
-def test_init_enforces_9600_baud(mock_serial_manager):
-    """Test that initializing ControllerService forces baudrate to 9600."""
+def test_init_does_not_override_baudrate(mock_serial_manager):
+    """Test that ControllerService preserves whatever baudrate the caller set."""
     mock_serial_manager.baudrate = 115200
     mock_serial_manager.is_connected.return_value = True
-    
-    # Initialize controller
+
     c = ControllerService(mock_serial_manager)
-    c._shutdown_event.set() # Cleanup
-    
-    assert mock_serial_manager.baudrate == 9600
+    c._shutdown_event.set()
+
+    # baudrate must not be overridden — the SV04 needs 115200, not 9600
+    assert mock_serial_manager.baudrate == 115200
+    mock_serial_manager.reconnect.assert_not_called()
+
+
+# --- SV04 USB switch -------------------------------------------------------
+
+def wire_sv04_echo(mock_serial_manager):
+    """
+    Makes the mock behave like a real SV04, which echoes every command back.
+
+    Without this the monitor thread never sees an echo and switch_port raises,
+    which is the correct behaviour for a dead link but not what most tests want.
+    """
+    pending: list[bytes] = []
+
+    def _write(data):
+        pending.append(bytes(data))
+        return len(data)
+
+    def _read_existing():
+        return pending.pop(0) if pending else b''
+
+    mock_serial_manager.write.side_effect = _write
+    mock_serial_manager.read_existing.side_effect = _read_existing
+
+
+@pytest.mark.parametrize("port_id,expected", [
+    (1, b'\xAA\x00\x56'),
+    (2, b'\xAA\x01\x55'),
+    (3, b'\xAA\x02\x54'),
+    (4, b'\xAA\x03\x53'),
+])
+def test_sv04_switch_matches_vendor_table(controller, mock_serial_manager, port_id, expected):
+    """Generated SV04 packets must match the vendor command table byte-for-byte."""
+    wire_sv04_echo(mock_serial_manager)
+    controller.update_config(protocol="sv04")
+    controller.switch_port(port_id)
+    mock_serial_manager.write.assert_called_with(expected)
+    assert getattr(SV04Commands, f"SWITCH_PORT_{port_id}") == expected
+
+
+def test_sv04_switch_confirmed_by_echo(controller, mock_serial_manager):
+    """A switch that is echoed back must succeed and set active_port."""
+    wire_sv04_echo(mock_serial_manager)
+    controller.update_config(protocol="sv04")
+    controller.switch_port(3)
+    assert controller.active_port == 3
+
+
+def test_sv04_switch_raises_when_no_echo(controller, mock_serial_manager):
+    """
+    A silent switch must raise, not report success.
+
+    This is the failure that mattered in practice: the SV04's RS232 controller
+    latches up while USB switching keeps working, and the API happily returned
+    200 for every command.
+    """
+    mock_serial_manager.read_existing.return_value = b''   # never echoes
+    controller.update_config(protocol="sv04")
+
+    with pytest.raises(ConnectionError, match="did not acknowledge"):
+        controller.switch_port(2)
+
+    # The command was still written; it just was not acknowledged.
+    mock_serial_manager.write.assert_called_with(b'\xAA\x01\x55')
+    assert controller.active_port is None
+
+
+def test_sv04_refuses_to_send_at_wrong_baud(controller, mock_serial_manager):
+    """
+    Sending SV04 commands at the wrong baud must be refused, not attempted.
+
+    Wrong-baud traffic arrives as framing garbage and latches up the switch's
+    RS232 controller until it is power-cycled, so this guard protects the
+    hardware rather than just reporting an error.
+    """
+    wire_sv04_echo(mock_serial_manager)
+    controller.update_config(protocol="sv04", baudrate=9600)
+
+    mock_serial_manager.write.reset_mock()
+    with pytest.raises(ValueError, match="requires 115200"):
+        controller.switch_port(1)
+    mock_serial_manager.write.assert_not_called()
+
+
+def test_sv04_no_echo_clears_pending_state(controller, mock_serial_manager):
+    """A timed-out switch must not leave stale pending state behind."""
+    mock_serial_manager.read_existing.return_value = b''
+    controller.update_config(protocol="sv04")
+
+    with pytest.raises(ConnectionError):
+        controller.switch_port(2)
+    assert controller._pending_echo is None
+
+    # A subsequent successful switch must still work.
+    wire_sv04_echo(mock_serial_manager)
+    controller.switch_port(1)
+    assert controller.active_port == 1
+
+
+def test_sv04_packets_pass_validation():
+    """Every SV04 packet must satisfy the sum-to-0x100 checksum rule."""
+    for port_id in (1, 2, 3, 4):
+        packet = ProtocolHandler.build_sv04_packet(port_id)
+        assert ProtocolHandler.validate_sv04_packet(packet)
+        assert sum(packet) == 0x100
+        assert len(packet) == 3
+
+
+@pytest.mark.parametrize("bad_port", [0, 5, 8, -1])
+def test_sv04_rejects_out_of_range_inputs(controller, bad_port):
+    """The SV04 has only 4 inputs; anything else must be rejected, not sent."""
+    controller.update_config(protocol="sv04")
+    with pytest.raises(ValueError):
+        controller.switch_port(bad_port)
+
+
+def test_sv04_selection_defaults_baudrate_to_115200(controller, mock_serial_manager):
+    """Selecting sv04 without a baudrate must move the port to 115200."""
+    mock_serial_manager.baudrate = 9600
+    controller.update_config(protocol="sv04")
+    assert mock_serial_manager.baudrate == SV04Commands.BAUDRATE
     mock_serial_manager.reconnect.assert_called_once()
+
+
+def test_sv04_respects_explicit_baudrate(controller, mock_serial_manager):
+    """An explicit baudrate alongside the protocol must win over the default."""
+    mock_serial_manager.baudrate = 9600
+    controller.update_config(protocol="sv04", baudrate=38400)
+    assert mock_serial_manager.baudrate == 38400
+
+
+def test_sv04_ignores_terminator(controller, mock_serial_manager):
+    """A configured terminator must not be appended to a 3-byte SV04 frame."""
+    wire_sv04_echo(mock_serial_manager)
+    controller.update_config(protocol="sv04", terminator="crlf")
+    controller.switch_port(2)
+    sent = mock_serial_manager.write.call_args[0][0]
+    assert sent == b'\xAA\x01\x55'
+    assert not sent.endswith(b'\r\n')
+
+
+def test_sv04_echo_updates_active_port(controller):
+    """The switch echoes commands verbatim; the echo must set active_port."""
+    controller.update_config(protocol="sv04")
+    remainder = controller._consume_sv04_frames(b'\xAA\x02\x54')
+    assert controller.active_port == 3
+    assert remainder == b''
+
+
+def test_sv04_echo_handles_multiple_frames(controller):
+    """Back-to-back echoes must all be consumed, leaving active_port at the last."""
+    controller.update_config(protocol="sv04")
+    remainder = controller._consume_sv04_frames(b'\xAA\x00\x56\xAA\x03\x53')
+    assert controller.active_port == 4
+    assert remainder == b''
+
+
+def test_sv04_echo_buffers_partial_frame(controller):
+    """A partial frame must be retained until the rest arrives."""
+    controller.update_config(protocol="sv04")
+    remainder = controller._consume_sv04_frames(b'\xAA\x01')
+    assert remainder == b'\xAA\x01'
+    assert controller.active_port is None
+
+    remainder = controller._consume_sv04_frames(remainder + b'\x55')
+    assert remainder == b''
+    assert controller.active_port == 2
+
+
+def test_sv04_echo_resyncs_past_garbage(controller):
+    """Leading garbage must be skipped to find a valid frame."""
+    controller.update_config(protocol="sv04")
+    remainder = controller._consume_sv04_frames(b'\xFE\x00\xAA\x01\x55')
+    assert controller.active_port == 2
+    assert remainder == b''
+
+
+def test_sv04_echo_discards_bad_checksum(controller):
+    """A frame with a wrong checksum must not move active_port."""
+    controller.update_config(protocol="sv04")
+    controller._consume_sv04_frames(b'\xAA\x01\x99')
+    assert controller.active_port is None
+
+
+def test_sv04_validator_rejects_corrupt_packets():
+    """Bad header, bad checksum, or wrong length must all fail validation."""
+    assert not ProtocolHandler.validate_sv04_packet(b'\xAB\x00\x56')      # bad header
+    assert not ProtocolHandler.validate_sv04_packet(b'\xAA\x00\x57')      # bad checksum
+    assert not ProtocolHandler.validate_sv04_packet(b'\xAA\x00')          # too short
+    assert not ProtocolHandler.validate_sv04_packet(b'\xAA\x00\x56\x00')  # too long

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KVM Control Panel</title>
+    <title>USB Switch Control</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
         .status-dot {
@@ -16,7 +16,7 @@
         }
         .status-online { background-color: #2ecc71; }
         .status-offline { background-color: #e74c3c; }
-        
+
         .header-nav {
             display: flex;
             justify-content: space-between;
@@ -32,8 +32,8 @@
         .input-option {
             text-align: center;
         }
-        
-        /* Make radio buttons look like cards/buttons */
+
+        /* Radio buttons are hidden; the label acts as the clickable card */
         .input-option input[type="radio"] {
             display: none;
         }
@@ -53,6 +53,12 @@
             border-color: var(--primary);
         }
 
+        /* Visual indicator while a switch command is awaiting hardware echo */
+        .input-option label[aria-busy="true"] {
+            opacity: 0.65;
+            cursor: progress;
+        }
+
         .toast {
             position: fixed;
             bottom: 20px;
@@ -63,6 +69,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             display: none;
             z-index: 1000;
+            max-width: 360px;
         }
     </style>
 </head>
@@ -71,7 +78,7 @@
         <!-- Header -->
         <nav class="header-nav">
             <ul>
-                <li><strong>KVM Control</strong></li>
+                <li><strong>USB Switch</strong></li>
             </ul>
             <ul>
                 <li><span id="api-status-dot" class="status-dot"></span> API</li>
@@ -86,152 +93,28 @@
             <p><small>Checking connectivity...</small></p>
         </div>
 
+        <!-- Connection info is read-only; configuration is set via environment variables
+             in docker-compose.yml and must not be changeable from the UI — setting the
+             wrong baud rate from the browser is what wedges the hardware. -->
+        <section>
+            <h3>Connection</h3>
+            <p><small>Port: <span id="serial-port">—</span> &nbsp;&nbsp; Baud: <span id="baud-rate">—</span></small></p>
+        </section>
+
         <!-- Input Selection -->
         <section>
             <h3>Input Selection</h3>
-            <div class="input-grid">
-                <!-- Generated 8 Ports -->
-                <div class="input-option">
-                    <input type="radio" name="kvm-port" id="port-1" value="1">
-                    <label for="port-1">PC 1</label>
-                </div>
-                <div class="input-option">
-                    <input type="radio" name="kvm-port" id="port-2" value="2">
-                    <label for="port-2">PC 2</label>
-                </div>
-                <div class="input-option">
-                    <input type="radio" name="kvm-port" id="port-3" value="3">
-                    <label for="port-3">PC 3</label>
-                </div>
-                <div class="input-option">
-                    <input type="radio" name="kvm-port" id="port-4" value="4">
-                    <label for="port-4">PC 4</label>
-                </div>
-                <div class="input-option">
-                    <input type="radio" name="kvm-port" id="port-5" value="5">
-                    <label for="port-5">PC 5</label>
-                </div>
-                <div class="input-option">
-                    <input type="radio" name="kvm-port" id="port-6" value="6">
-                    <label for="port-6">PC 6</label>
-                </div>
-                <div class="input-option">
-                    <input type="radio" name="kvm-port" id="port-7" value="7">
-                    <label for="port-7">PC 7</label>
-                </div>
-                <div class="input-option">
-                    <input type="radio" name="kvm-port" id="port-8" value="8">
-                    <label for="port-8">PC 8</label>
-                </div>
-            </div>
-        </section>
-
-        <!-- Settings -->
-        <section>
-            <h3>Settings</h3>
-            <div class="grid">
-                <div>
-                    <h5>Buzzer</h5>
-                    <div role="group">
-                        <button class="outline" id="btn-buzzer-on" onclick="setBuzzer('on')">On</button>
-                        <button class="outline" id="btn-buzzer-off" onclick="setBuzzer('off')">Off</button>
-                    </div>
-                </div>
-                <div>
-                    <h5>Light Effect</h5>
-                    <select id="light-select" onchange="setLightMode(this.value)">
-                        <option value="" disabled selected>Select Effect</option>
-                        <option value="off">Off</option>
-                        <option value="basic">Basic</option>
-                        <option value="flow">Flow</option>
-                        <option value="breathing">Breathing</option>
-                    </select>
-                </div>
-                <div>
-                    <h5>Protocol Configuration</h5>
-                    <label for="protocol-select">Protocol</label>
-                    <select id="protocol-select" onchange="updateConfig()">
-                        <option value="consumer_a">Consumer A (Keypad)</option>
-                        <option value="enterprise">Enterprise (Default)</option>
-                        <option value="consumer_b">Consumer B (Routing)</option>
-                        <option value="matrix">Matrix (ASCII)</option>
-                        <option value="dual_monitor_hex">Dual-Monitor Hex</option>
-                        <option value="hdc202_x24" selected>HDC202-X24</option>
-                    </select>
-                    
-                    <label for="baudrate-select">Baud Rate</label>
-                    <select id="baudrate-select" onchange="updateConfig()">
-                        <option value="115200" selected>115200</option>
-                        <option value="9600">9600</option>
-                        <option value="38400">38400</option>
-                    </select>
-
-                    <label for="terminator-select">Command Terminator</label>
-                    <select id="terminator-select" onchange="updateConfig()">
-                        <option value="none" selected>None</option>
-                        <option value="lf">LF (\n)</option>
-                        <option value="cr">CR (\r)</option>
-                        <option value="crlf">CRLF (\r\n)</option>
-                    </select>
-                </div>
-            </div>
-        </section>
-
-        <!-- Queries -->
-        <section>
-            <h3>Queries (HDC202-X24 Only)</h3>
-            <div class="grid">
-                <div>
-                    <label for="query-select">Select Query</label>
-                    <select id="query-select">
-                        <option value="buzzer">Buzzer Status</option>
-                        <option value="km_focus">KM Focus</option>
-                        <option value="light">Light Effect</option>
-                        <option value="monitor_count">Monitor Count</option>
-                        <option value="mapping">Mapping Relationship</option>
-                        <option value="usb_focus">USB Focus</option>
-                        <option value="usb_compat">USB Compatibility</option>
-                        <option value="network">Network Status</option>
-                        <option value="mouse_middle">Mouse Middle Button</option>
-                        <option value="fan">Fan Status</option>
-                        <option value="audio_follow">Audio Follow Status</option>
-                        <option value="audio_channel">Audio Channel Status</option>
-                        <option value="autodetect">Auto-detect Status</option>
-                        <option value="autoscan">Auto-scan Status</option>
-                    </select>
-                    <div role="group">
-                        <button onclick="runQuery()">Send Query</button>
-                        <button class="outline" onclick="runAllQueries()">Run All Queries</button>
-                    </div>
-                </div>
-                <div>
-                    <label>Response:</label>
-                    <pre id="query-response" style="background: var(--card-background-color); padding: 1rem; border-radius: var(--border-radius); min-height: 80px;">No response yet</pre>
-                    <div id="batch-query-results" style="display: none; margin-top: 1rem;">
-                        <details open>
-                            <summary>Batch Query Results</summary>
-                            <pre id="batch-query-logs" style="max-height: 200px; overflow-y: auto; background: var(--card-background-color); padding: 1rem; border-radius: var(--border-radius);"></pre>
-                        </details>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Diagnostics -->
-        <section>
-            <h3>Diagnostics</h3>
-            <p>Run a comprehensive test of all Protocol, Baud Rate, and Terminator combinations, switching between Port 1 and 2.</p>
-            <button id="btn-run-test" onclick="runDiagnostics()">Run Configuration Scanner</button>
-            <details id="details-logs">
-                <summary>Test Logs</summary>
-                <pre id="test-logs" style="max-height: 300px; overflow-y: auto; background: var(--card-background-color); padding: 1rem; border-radius: var(--border-radius);">No logs yet.</pre>
-            </details>
+            <!-- Shared USB peripherals (keyboard, mouse) follow the selected input.
+                 Switching away from this machine's input will detach them until you switch back. -->
+            <p><small>Note: shared USB peripherals follow the active input. Switching away from this machine's input will detach them until you switch back.</small></p>
+            <!-- Inputs 1–4 are generated by app.js using the PORT_COUNT constant -->
+            <div id="input-grid" class="input-grid"></div>
         </section>
 
     </main>
 
     <!-- Toast Notification -->
-    <div id="toast" class="toast">Action Successful</div>
+    <div id="toast" class="toast"></div>
 
     <script src="app.js"></script>
 </body>

@@ -7,9 +7,11 @@
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![ty](https://img.shields.io/badge/ty-checked-blue.svg)](https://github.com/astral-sh/ty)
 
-A modern, web-based controller for TESmart KVM Switches, designed to run on a **Raspberry Pi** or any Linux environment. This project exposes a REST API and a web interface to control input switching, buzzer settings, and advanced features over a serial connection.
+A modern, web-based controller for an **SV04 4-port USB peripheral switch**, designed to run on a **Raspberry Pi** or any Linux environment. This project exposes a REST API and a streamlined web interface to select which of four inputs owns the shared USB peripherals, over an RS232 serial connection.
 
-It supports multiple TESmart protocols, including the newer HDC202/X24 series as well as legacy Enterprise and Consumer models.
+> ⚠️ **Operational note:** Switching away from a machine's own input immediately detaches any shared USB peripherals (keyboard, mouse) from that machine.
+
+The backend also retains support for six **TESmart KVM protocols** (`hdc202_x24`, `enterprise`, `consumer_a`, `consumer_b`, `matrix`, `dual_monitor_hex`), accessible via the REST API.
 
 ## 🏗️ Architecture
 
@@ -26,8 +28,8 @@ graph TD
         SerialMgr -- "Thread Lock" --> SerialPort["Serial Port"]
     end
     
-    SerialPort -- "UART / TTL (Hex Bytes)" --> KVM["TESmart KVM Switch"]
-    KVM -- "Response (Hex Bytes)" --> SerialPort
+    SerialPort -- "RS232 / 115200 baud (3-byte frames)" --> Switch["SV04 USB Switch"]
+    Switch -- "Command echo (~40-95 ms)" --> SerialPort
     SerialPort -- "Read" --> SerialMgr
     SerialMgr -- "Update State" --> Controller
     Controller -- "Status Update" --> API
@@ -51,11 +53,11 @@ graph TD
                                                   |  /dev/ttyUSB0       |
                                                   +---------------------+
                                                             |
-                                                       TX / RX (TTL)
+                                                    TX / RX (RS232)
                                                             |
                                                             v
                                                   +---------------------+
-                                                  | TESmart KVM Switch  |
+                                                  |  SV04 USB Switch    |
                                                   |     (Hardware)      |
                                                   +---------------------+
 ```
@@ -64,25 +66,20 @@ graph TD
 
 ### Prerequisites
 
-*   **Hardware**: Raspberry Pi (running Raspberry Pi OS) or Linux Desktop/Server.
-*   **Software**: Docker & Docker Compose.
-*   **KVM**: A TESmart KVM Switch connected via Serial (USB-to-Serial adapter recommended).
+*   **Hardware**: Raspberry Pi 5 (or any Raspberry Pi running Raspberry Pi OS) or Linux Desktop/Server.
+*   **Software**: Docker with the Compose v2 plugin (`docker compose`).
+*   **Switch**: An SV04 4-port USB peripheral switch connected via RS232 (a USB-to-serial adapter with DB9 connector is required; the verified setup uses an FTDI FT232R).
 
 ### Hardware Setup
 
-> ⚠️ **CRITICAL HARDWARE WARNING** ⚠️
-> *   **DO NOT** use a standard RS-232 cable (±12V levels). This could damage your KVM.
-> *   You **MUST** use a **3.3V TTL** USB-to-Serial cable.
-> *   **Interface**: 3.5 mm service port (UART with TTL levels).
+> ⚠️ **BAUD RATE WARNING** ⚠️
+> The SV04 communicates at **115200 baud only**. Sending commands at any other baud rate latches up the switch's RS232 controller until it is **physically power-cycled**. Ensure `BAUD_RATE=115200` and `PROTOCOL=sv04` are set in `docker-compose.yml` before first use.
 
-**Pinout Configuration:**
-*   **Pin 3**: TX (Transmit)
-*   **Pin 2**: RX (Receive)
-*   **Pin 1**: GND (Ground)
+**Verified hardware rig:** Raspberry Pi 5, FTDI FT232R USB-serial adapter on `/dev/ttyUSB0`, DB9 cable to the SV04's RS232 port.
 
-1.  Connect your **3.3V TTL USB-to-Serial adapter** to the Raspberry Pi.
-2.  Connect the 3.5mm jack to the service port on the KVM.
-3.  Identify the port (usually `/dev/ttyUSB0`).
+1.  Connect your **USB-to-serial adapter** (e.g. FTDI FT232R) to the Raspberry Pi USB port.
+2.  Connect the adapter's DB9 connector to the RS232 port on the SV04 switch.
+3.  Identify the device path (usually `/dev/ttyUSB0`).
 
 ### Installation & Running
 
@@ -92,8 +89,13 @@ graph TD
     cd KVM-as-a-Service
     ```
 
-2.  **Configure Serial Port:**
-    Edit `docker-compose.yml` to match your device path (e.g., `/dev/ttyUSB0`).
+2.  **Configure Serial Port and Protocol:**
+    Edit `docker-compose.yml` to match your device path and verify the SV04 settings:
+    *   `SERIAL_PORT=AUTO` (or `/dev/ttyUSB0` explicitly)
+    *   `BAUD_RATE=115200`
+    *   `PROTOCOL=sv04`
+
+    > **Note:** This project uses Docker Compose v2 (`docker compose`). The v1 `docker-compose` binary is not installed on the verified setup; the header comments in `docker-compose.yml` still show v1-style commands, which should be ignored.
 
 3.  **Run with Docker:**
     ```bash
@@ -113,22 +115,28 @@ Since the service runs in Docker on your Raspberry Pi, it is automatically acces
 If you are developing on Windows using WSL 2, you may need to use our helper script to expose the port to your LAN.
 👉 **[Read the Network Access Guide](EXPOSE_NETWORK.md)**
 
+## 🖥️ Web Interface
+
+Open `http://<pi-ip-address>:8000` in a browser to access the web UI. It presents four input buttons (1–4). Clicking a button sends a switch command and waits for the hardware confirmation echo from the SV04 (~40–95 ms); the active-port indicator updates only after the hardware responds. The UI is read-only with respect to configuration — there are no protocol, baud rate, or terminator controls.
+
 ## 🔌 API Usage
 
 The service provides a Swagger UI for interactive documentation and testing.
 *   **Docs & Swagger UI:** `http://localhost:8000/docs`
+*   **Full API Reference:** [`docs/API.md`](docs/API.md)
 
 ### Core Control
-*   **Switch Port:** `POST /api/v1/switch`
+*   **Switch Input:** `POST /api/v1/switch`
     ```json
     {"port": 1}
     ```
-*   **Buzzer:** `POST /api/v1/buzzer`
+    *Ports 1–4 for SV04. A `200` response means hardware-confirmed (the SV04 echoes the command before the API responds). Ports 1–8 are accepted for TESmart KVM protocols.*
+*   **Buzzer:** `POST /api/v1/buzzer` *(TESmart KVM protocols only)*
     ```json
     {"state": "off"}
     ```
 
-### Audio & Video
+### Audio & Video *(TESmart KVM protocols only)*
 *   **Audio Source:** `POST /api/v1/audio/source`
     ```json
     {"port": 1}
@@ -138,7 +146,7 @@ The service provides a Swagger UI for interactive documentation and testing.
     {"enabled": true}
     ```
 
-### System & Environment
+### System & Environment *(TESmart KVM protocols only)*
 *   **Light Control:** `POST /api/v1/light`
     ```json
     {"mode": "flow"}
@@ -150,7 +158,7 @@ The service provides a Swagger UI for interactive documentation and testing.
     ```
     *Modes: `off`, `auto`, `low`, `high`*
 
-### USB & Peripherals
+### USB & Peripherals *(TESmart KVM protocols only)*
 *   **USB Focus:** `POST /api/v1/usb/focus`
     ```json
     {"target": "pc1"}
@@ -168,21 +176,23 @@ The service provides a Swagger UI for interactive documentation and testing.
 *   **Update Config:** `POST /api/v1/config`
     ```json
     {
-        "protocol": "hdc202_x24",
-        "baudrate": 9600,
+        "protocol": "sv04",
+        "baudrate": 115200,
         "terminator": "none"
     }
     ```
-    *Supported Protocols: `enterprise`, `consumer_a`, `consumer_b`, `matrix`, `dual_monitor_hex`, `hdc202_x24`*
-*   **Network Power (LAN):** `POST /api/v1/network`
+    *Supported Protocols: `sv04`, `enterprise`, `consumer_a`, `consumer_b`, `matrix`, `dual_monitor_hex`, `hdc202_x24`*
+
+    > ⚠️ For `sv04`, `baudrate` must always be `115200`. Any other value latches up the switch's RS232 controller until power-cycled. For normal use, configure via `docker-compose.yml` environment variables (`PROTOCOL=sv04`, `BAUD_RATE=115200`) — these are applied at service startup automatically.
+*   **Network Power (LAN):** `POST /api/v1/network` *(TESmart KVM protocols only)*
     ```json
     {"port": 1, "enabled": true}
     ```
-*   **Auto-Detect:** `POST /api/v1/system/autodetect`
+*   **Auto-Detect:** `POST /api/v1/system/autodetect` *(TESmart KVM protocols only)*
     ```json
     {"enabled": true}
     ```
-*   **Auto-Scan:** `POST /api/v1/system/autoscan`
+*   **Auto-Scan:** `POST /api/v1/system/autoscan` *(TESmart KVM protocols only)*
     ```json
     {"enabled": true}
     ```
@@ -190,12 +200,10 @@ The service provides a Swagger UI for interactive documentation and testing.
 ### Diagnostics & Query
 *   **Service Status:** `GET /api/v1/status`
     *Returns health, connection status, and current configuration.*
-*   **Send Query:** `POST /api/v1/query`
+*   **Send Query:** `POST /api/v1/query` *(TESmart KVM protocols only — SV04 does not support queries)*
     ```json
     {"command": "monitor_count"}
     ```
-*   **Test Permutations:** `POST /api/v1/test/permutations`
-    *Runs a manual test cycle across all baud rates and protocols (Use with caution).*
 
 ## 📁 Project Structure
 
@@ -204,7 +212,9 @@ The service provides a Swagger UI for interactive documentation and testing.
     *   `controller_service.py`: Logic & State Management.
     *   `serial_manager.py`: Hardware Communication.
     *   `constants.py`: Protocol Definitions.
-*   `static/`: Frontend web interface.
+    *   `probe_switch.py`: Hardware verification tool; run `python -m src.probe_switch --confirm` (also supports `--loopback` and `--hold-tx`). Stop the service container first — it holds `/dev/ttyUSB0`.
+*   `static/`: Frontend web interface (SV04 input selector).
+*   `docs/`: External-facing documentation (`API.md` — full REST API reference).
 *   `scripts/`: Helper scripts for deployment/networking.
 *   `ai/specs/`: Project specifications and design documents.
 

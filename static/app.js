@@ -1,86 +1,89 @@
 // Constants
 const API_BASE = '/api/v1';
 const POLLING_INTERVAL = 5000; // 5 seconds
+const PORT_COUNT = 4;           // SV04 is a 4-port switch; adjust here if hardware changes
 
 // DOM Elements
 const apiStatusDot = document.getElementById('api-status-dot');
 const hwStatusDot = document.getElementById('hw-status-dot');
 const statusMessage = document.getElementById('status-message');
-const portRadios = document.querySelectorAll('input[name="kvm-port"]');
+const serialPortEl = document.getElementById('serial-port');
+const baudRateEl = document.getElementById('baud-rate');
+const inputGrid = document.getElementById('input-grid');
 const toast = document.getElementById('toast');
-const protocolSelect = document.getElementById('protocol-select');
-const baudrateSelect = document.getElementById('baudrate-select');
-const terminatorSelect = document.getElementById('terminator-select');
 
 // State
 let isConnected = false;
-let currentConfig = {
-    protocol: 'hdc202_x24',
-    baudrate: 115200,
-    terminator: 'none'
-};
+let pendingSwitch = null; // port number currently awaiting hardware echo, or null
+
+// Build the input-selection grid so PORT_COUNT is the single source of truth.
+function buildInputGrid() {
+    for (let i = 1; i <= PORT_COUNT; i++) {
+        const div = document.createElement('div');
+        div.className = 'input-option';
+
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'usb-port';
+        radio.id = `port-${i}`;
+        radio.value = String(i);
+        radio.addEventListener('change', (e) => {
+            if (e.target.checked) switchPort(i);
+        });
+
+        const label = document.createElement('label');
+        label.htmlFor = `port-${i}`;
+        label.textContent = `Input ${i}`;
+
+        div.appendChild(radio);
+        div.appendChild(label);
+        inputGrid.appendChild(div);
+    }
+}
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
-    // Initial check
+    buildInputGrid();
     checkStatus();
-    
-    // Start polling
     setInterval(checkStatus, POLLING_INTERVAL);
-
-    // Bind Port Click Events
-    portRadios.forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                switchPort(parseInt(e.target.value));
-            }
-        });
-    });
 });
 
 /**
- * Check API Status
+ * Poll the API for hardware status and sync UI state.
  */
 async function checkStatus() {
     try {
         const response = await fetch(`${API_BASE}/status`);
         if (!response.ok) throw new Error('API Error');
-        
+
         const data = await response.json();
-        
-        // Update API Status
+
         updateStatusDot(apiStatusDot, true);
         isConnected = true;
 
-        // Update Hardware Status
         const isHardwareOk = data.status === 'healthy';
         updateStatusDot(hwStatusDot, isHardwareOk);
 
-        // Update Active Port (State Sync from KVM Feedback)
-        if (data.active_port) {
+        // Sync the selected radio from confirmed hardware state.
+        // active_port is null until a switch has been echo-confirmed since startup —
+        // treat null as "unknown" rather than rendering it as input 0 or an error.
+        if (data.active_port != null) {
             const portRadio = document.getElementById(`port-${data.active_port}`);
             if (portRadio && !portRadio.checked) {
                 portRadio.checked = true;
-                // Add a small visual pulse or log if needed, but simple sync is good
             }
+        } else {
+            // No switch confirmed yet — clear any stale selection
+            document.querySelectorAll('input[name="usb-port"]').forEach(r => { r.checked = false; });
         }
 
-        // Update Config UI if changed externally (or initial load)
-        if (data.protocol && data.protocol !== currentConfig.protocol) {
-            currentConfig.protocol = data.protocol;
-            protocolSelect.value = data.protocol;
-        }
-        if (data.baudrate && data.baudrate !== currentConfig.baudrate) {
-            currentConfig.baudrate = data.baudrate;
-            baudrateSelect.value = data.baudrate;
-        }
-        if (data.terminator && data.terminator !== currentConfig.terminator) {
-            currentConfig.terminator = data.terminator;
-            terminatorSelect.value = data.terminator;
-        }
+        // Reflect connection details read-only. These come from env vars via the backend;
+        // we never let the UI write them back (wrong baud wedges the hardware).
+        if (data.port)     serialPortEl.textContent = data.port;
+        if (data.baudrate) baudRateEl.textContent = data.baudrate;
 
         statusMessage.innerHTML = `<p><small>System: ${data.status}</small></p>`;
-        
+
         enableControls(true);
 
     } catch (error) {
@@ -94,50 +97,21 @@ async function checkStatus() {
 }
 
 /**
- * Update Configuration
- */
-async function updateConfig() {
-    // Allow config update even if disconnected, to allow fixing connection params
-    // if (!isConnected) return;
-
-    const protocol = protocolSelect.value;
-    const baudrate = parseInt(baudrateSelect.value);
-    const terminator = terminatorSelect.value;
-
-    // Optimistic update
-    currentConfig = { protocol, baudrate, terminator };
-
-    try {
-        const response = await fetch(`${API_BASE}/config`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ protocol, baudrate, terminator })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Failed to update config');
-        }
-
-        const result = await response.json();
-        showToast(result.message);
-
-    } catch (error) {
-        console.error('Config update failed:', error);
-        showToast(`Error: ${error.message}`, true);
-        // Could revert UI here if needed, but next poll will fix it
-    }
-}
-
-/**
- * Switch KVM Port
- * @param {number} portId 
+ * Send a switch command and wait for hardware echo confirmation.
+ *
+ * The SV04 echoes each command within ~40-95ms; the backend holds the request open
+ * until it hears the echo, so a 200 is genuine hardware confirmation.
+ * A 503 means no echo within the timeout — the RS-232 controller has likely latched up
+ * and needs a power cycle. The detail field already carries that guidance; surface it as-is.
+ *
+ * @param {number} portId
  */
 async function switchPort(portId) {
     if (!isConnected) return;
 
-    // Visual feedback immediately (already checked by radio logic, but good to reinforce)
-    showToast(`Switching to Port ${portId}...`);
+    pendingSwitch = portId;
+    enableControls(false); // disable all inputs while in flight
+    setPendingVisual(portId, true);
 
     try {
         const response = await fetch(`${API_BASE}/switch`, {
@@ -148,192 +122,43 @@ async function switchPort(portId) {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || 'Failed to switch port');
+            const msg = errorData.detail || 'Switch failed';
+            // Give the user extra time to read the recovery instructions on a hardware failure
+            const isHardwareFailure = response.status === 503;
+            showToast(msg, true, isHardwareFailure ? 8000 : 3000);
+            // Uncheck the optimistically-selected radio; next poll restores ground truth
+            revertPortSelection(portId);
+        } else {
+            const result = await response.json();
+            showToast(result.message || `Switched to Input ${portId}`);
         }
-
-        const result = await response.json();
-        showToast(result.message);
 
     } catch (error) {
         console.error('Switch failed:', error);
         showToast(`Error: ${error.message}`, true);
-        
-        // Optional: Reset radio button selection if failed? 
-        // For now, leave as is or user might try again.
-    }
-}
-
-/**
- * Control Buzzer
- * @param {string} state 'on' or 'off'
- */
-async function setBuzzer(state) {
-    if (!isConnected) return;
-
-    try {
-        const response = await fetch(`${API_BASE}/buzzer`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ state: state })
-        });
-
-        if (!response.ok) throw new Error('Failed to set buzzer');
-        
-        const result = await response.json();
-        showToast(result.message);
-        
-        // Update button styles
-        document.getElementById('btn-buzzer-on').className = state === 'on' ? '' : 'outline';
-        document.getElementById('btn-buzzer-off').className = state === 'off' ? '' : 'outline';
-
-    } catch (error) {
-        showToast(`Error: ${error.message}`, true);
-    }
-}
-
-/**
- * Set Light Mode
- * @param {string} mode
- */
-async function setLightMode(mode) {
-    if (!isConnected) return;
-
-    try {
-        const response = await fetch(`${API_BASE}/light`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: mode })
-        });
-
-        if (!response.ok) throw new Error('Failed to set light mode');
-        
-        const result = await response.json();
-        showToast(result.message);
-
-    } catch (error) {
-        showToast(`Error: ${error.message}`, true);
-    }
-}
-
-/**
- * Run Query
- */
-async function runQuery() {
-    if (!isConnected) return;
-    const command = document.getElementById('query-select').value;
-    const responseEl = document.getElementById('query-response');
-    responseEl.textContent = "Querying...";
-    
-    try {
-        const response = await fetch(`${API_BASE}/query`, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ command: command })
-        });
-        
-        if (!response.ok) {
-            const err = await response.json();
-             throw new Error(err.detail || 'Query failed');
-        }
-        
-        const data = await response.json();
-        const timestamp = new Date(data.timestamp).toLocaleTimeString();
-        responseEl.textContent = `[${timestamp}] ${data.response_hex || 'No Data'}`;
-        showToast("Query successful");
-        
-    } catch (error) {
-         responseEl.textContent = `Error: ${error.message}`;
-         showToast("Query failed", true);
-    }
-}
-
-/**
- * Run All Queries (Batch)
- */
-async function runAllQueries() {
-    if (!isConnected) return;
-    
-    const resultsContainer = document.getElementById('batch-query-results');
-    const logsContainer = document.getElementById('batch-query-logs');
-    
-    resultsContainer.style.display = 'block';
-    logsContainer.innerHTML = 'Running all queries...';
-    
-    try {
-        const response = await fetch(`${API_BASE}/test/queries`, {
-            method: 'POST'
-        });
-        
-        if (!response.ok) throw new Error('Failed to run batch queries');
-        
-        const data = await response.json();
-        
-        let logHtml = '';
-        data.logs.forEach(log => {
-             let statusText = log.status.toUpperCase();
-             let color = log.status === 'success' ? '#2ecc71' : '#e74c3c';
-             let detailText = log.detail;
-
-             // Check for empty response
-             if (log.status === 'success' && (!log.detail || log.detail.trim() === '')) {
-                 statusText = 'NO RESPONSE';
-                 color = '#f1c40f'; // Yellow
-                 detailText = 'No data returned';
-             }
-
-             logHtml += `<div><span style="color:${color}">[${statusText}]</span> <strong>${log.action}</strong>: ${detailText}</div>`;
-        });
-        
-        logsContainer.innerHTML = logHtml;
-        showToast("Batch queries completed");
-        
-    } catch (error) {
-        console.error('Batch query failed:', error);
-        logsContainer.innerHTML = `<span style="color:red">Error: ${error.message}</span>`;
-        showToast("Batch query failed", true);
-    }
-}
-
-/**
- * Run Diagnostics
- */
-async function runDiagnostics() {
-    if (!isConnected) return;
-    
-    const btn = document.getElementById('btn-run-test');
-    const logsContainer = document.getElementById('test-logs');
-    const details = document.getElementById('details-logs');
-    
-    btn.setAttribute('aria-busy', 'true');
-    btn.disabled = true;
-    logsContainer.innerHTML = 'Running tests...';
-    details.open = true; // Auto open logs
-    
-    try {
-        const response = await fetch(`${API_BASE}/test/permutations`, {
-            method: 'POST'
-        });
-        
-        if (!response.ok) throw new Error('Test failed to start');
-        
-        const data = await response.json();
-        
-        let logHtml = '';
-        data.logs.forEach(log => {
-            const color = log.status === 'success' ? '#2ecc71' : (log.status === 'skipped' ? '#f1c40f' : '#e74c3c');
-            logHtml += `<div><span style="color:${color}">[${log.status.toUpperCase()}]</span> <strong>${log.action}</strong>: ${log.detail}</div>`;
-        });
-        
-        logsContainer.innerHTML = logHtml;
-        showToast("Diagnostics completed");
-        
-    } catch (error) {
-        console.error('Diagnostics failed:', error);
-        logsContainer.innerHTML = `<span style="color:red">Error: ${error.message}</span>`;
-        showToast("Diagnostics failed", true);
+        revertPortSelection(portId);
     } finally {
-        btn.setAttribute('aria-busy', 'false');
-        btn.disabled = false;
+        setPendingVisual(portId, false);
+        pendingSwitch = null;
+        enableControls(isConnected);
+    }
+}
+
+// Uncheck a radio after a failed switch; the next status poll will re-sync to hardware state.
+function revertPortSelection(portId) {
+    const radio = document.getElementById(`port-${portId}`);
+    if (radio) radio.checked = false;
+}
+
+// Show a loading indicator on the label while its switch command is in flight.
+function setPendingVisual(portId, pending) {
+    const label = document.querySelector(`label[for="port-${portId}"]`);
+    if (!label) return;
+    // aria-busy triggers Pico's built-in spinner and our CSS opacity/cursor rule
+    if (pending) {
+        label.setAttribute('aria-busy', 'true');
+    } else {
+        label.removeAttribute('aria-busy');
     }
 }
 
@@ -350,21 +175,28 @@ function updateStatusDot(element, isOnline) {
 }
 
 function enableControls(enabled) {
-    portRadios.forEach(r => r.disabled = !enabled);
-    document.getElementById('btn-buzzer-on').disabled = !enabled;
-    document.getElementById('btn-buzzer-off').disabled = !enabled;
-    // protocolSelect.disabled = !enabled;
-    // baudrateSelect.disabled = !enabled;
-    // terminatorSelect.disabled = !enabled;
+    // Do not re-enable while a switch is still awaiting echo confirmation
+    if (enabled && pendingSwitch !== null) return;
+    document.querySelectorAll('input[name="usb-port"]').forEach(r => { r.disabled = !enabled; });
 }
 
-function showToast(message, isError = false) {
+let toastTimer = null;
+
+/**
+ * @param {string}  message
+ * @param {boolean} isError
+ * @param {number}  duration  ms to show the toast (default 3000; use 8000 for 503 errors
+ *                            so the user has time to read power-cycle instructions)
+ */
+function showToast(message, isError = false, duration = 3000) {
     toast.textContent = message;
     toast.style.display = 'block';
     toast.style.borderLeftColor = isError ? '#e74c3c' : '#2ecc71';
-    
-    // Hide after 3 seconds
-    setTimeout(() => {
+
+    // Reset the clock each time a new message arrives
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
         toast.style.display = 'none';
-    }, 3000);
+        toastTimer = null;
+    }, duration);
 }

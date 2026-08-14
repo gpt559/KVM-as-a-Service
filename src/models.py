@@ -18,8 +18,8 @@ class ConfigRequest(BaseModel):
     """
     Request model for updating KVM configuration.
     """
-    protocol: Optional[Literal["enterprise", "consumer_a", "consumer_b", "matrix", "dual_monitor_hex", "hdc202_x24"]] = None
-    baudrate: Optional[Literal[9600, 38400, 115200]] = None
+    protocol: Optional[Literal["enterprise", "consumer_a", "consumer_b", "matrix", "dual_monitor_hex", "hdc202_x24", "sv04"]] = None
+    baudrate: Optional[Literal[9600, 19200, 38400, 57600, 115200]] = None
     terminator: Optional[Literal["none", "cr", "lf", "crlf"]] = None
 
 class LightModeRequest(BaseModel):
@@ -84,18 +84,3 @@ class ErrorResponse(BaseModel):
     code: str
     detail: str
 
-class TestLog(BaseModel):
-    """
-    Log entry for a manual test step.
-    """
-    action: str
-    status: Literal["success", "failed", "skipped"]
-    detail: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class TestResponse(BaseModel):
-    """
-    Response model for the manual test run.
-    """
-    status: str = "completed"
-    logs: list[TestLog]

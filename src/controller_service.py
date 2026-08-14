@@ -6,7 +6,7 @@ from typing import Literal, Optional, Dict, Any, cast
 
 from src.serial_manager import SerialManager
 from src.protocol_handler import ProtocolHandler
-from src.constants import Protocol, PROTOCOL_MAP, HDC202X24Commands
+from src.constants import Protocol, PROTOCOL_MAP, HDC202X24Commands, SV04Commands
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +25,9 @@ class ControllerService:
         # Async Query Management
         self._query_lock = threading.Lock() # Guards _pending_query
         self._pending_query: Optional[Dict[str, Any]] = None # {'cmd_id': int, 'future': Future}
+        self._pending_echo: Optional[Dict[str, Any]] = None # {'frame': bytes, 'future': Future}
         self._shutdown_event = threading.Event()
 
-        # Initialize serial with correct baudrate
-        if self.serial_manager.baudrate != 9600:
-             self.serial_manager.baudrate = 9600
-             if self.serial_manager.is_connected():
-                 self.serial_manager.reconnect()
 
         # Start background monitor thread
         self._monitor_thread = threading.Thread(target=self._monitor_serial, daemon=True)
@@ -48,6 +44,13 @@ class ControllerService:
             except ValueError:
                 raise ValueError(f"Invalid protocol: {protocol}")
 
+            # The SV04 only responds at 115200. Selecting it without also
+            # selecting a baudrate is the most common way to get a silent
+            # no-op, so default it here unless the caller was explicit.
+            if self.current_protocol == Protocol.SV04 and baudrate is None:
+                baudrate = SV04Commands.BAUDRATE
+                logger.info(f"SV04 selected: defaulting baudrate to {baudrate}")
+
         if terminator:
             if terminator not in ["none", "cr", "lf", "crlf"]:
                 raise ValueError(f"Invalid terminator: {terminator}")
@@ -55,7 +58,7 @@ class ControllerService:
             logger.info(f"Terminator updated to: {self.current_terminator}")
 
         if baudrate:
-            if baudrate not in [9600, 38400, 115200]:
+            if baudrate not in [9600, 19200, 38400, 57600, 115200]:
                 raise ValueError(f"Invalid baudrate: {baudrate}")
             
             with self._lock:
@@ -104,6 +107,14 @@ class ControllerService:
                     buffer += new_data
 
                 # 2. Parse Loop
+                # SV04 frames are 3 bytes with no AA BB header, so they can
+                # neither satisfy the length guard below nor be recognised by
+                # try_parse_packet. Handle them separately.
+                if self.current_protocol == Protocol.SV04:
+                    buffer = self._consume_sv04_frames(buffer)
+                    time.sleep(0.05)
+                    continue
+
                 while True:
                     # Only attempt parsing if we have enough data
                     if len(buffer) < 4:
@@ -129,6 +140,38 @@ class ControllerService:
             except Exception as e:
                 logger.error(f"Error in serial monitor: {e}")
                 time.sleep(1) # Backoff on error
+
+    def _consume_sv04_frames(self, buffer: bytes) -> bytes:
+        """
+        Extracts SV04 echo frames from the buffer and updates active_port.
+
+        The SV04 echoes each input-select command back verbatim (~40-95ms), so
+        the echo is a genuine hardware confirmation that the switch acted.
+        Returns the unconsumed remainder of the buffer.
+        """
+        while len(buffer) >= 3:
+            frame = buffer[:3]
+            if ProtocolHandler.validate_sv04_packet(frame):
+                self._log_serial_event("SV04 ECHO", frame)
+                new_port = frame[1] + 1
+                if self.active_port != new_port:
+                    self.active_port = new_port
+                    logger.info(f"SV04 confirmed switch to input {new_port}")
+
+                # Release any caller waiting on this exact echo.
+                with self._query_lock:
+                    if self._pending_echo and self._pending_echo['frame'] == frame:
+                        self._pending_echo['future'].set_result(frame)
+                        self._pending_echo = None
+
+                buffer = buffer[3:]
+            else:
+                # Resynchronise: drop one byte and look for the next header.
+                next_header = buffer.find(ProtocolHandler.SV04_HEADER, 1)
+                if next_header == -1:
+                    return b"" if buffer[-1] != ProtocolHandler.SV04_HEADER else buffer[-1:]
+                buffer = buffer[next_header:]
+        return buffer
 
     def _handle_incoming_packet(self, packet: bytes):
         """
@@ -167,6 +210,11 @@ class ControllerService:
 
     def _apply_terminator(self, command: bytes) -> bytes:
         """Appends the configured terminator to the command bytes."""
+        # SV04 packets are exactly 3 bytes with a sum-to-0x100 checksum;
+        # any terminator would corrupt the frame.
+        if self.current_protocol == Protocol.SV04:
+            return command
+
         if self.current_terminator == "cr":
             return command + b'\r'
         elif self.current_terminator == "lf":
@@ -176,6 +224,11 @@ class ControllerService:
         return command
 
     def switch_port(self, port_id: int) -> None:
+        if self.current_protocol == Protocol.SV04:
+            # SV04: AA [Port-1] CS, bytes sum to 0x100. Only 4 inputs exist.
+            self._switch_port_sv04(port_id)
+            return
+
         if not (1 <= port_id <= 8):
             raise ValueError(f"Invalid port ID: {port_id}. Must be between 1 and 8.")
 
@@ -192,6 +245,48 @@ class ControllerService:
             if not hasattr(commands, command_name):
                 raise NotImplementedError(f"Port {port_id} not supported")
             self._send_command_bytes(getattr(commands, command_name))
+
+    def _switch_port_sv04(self, port_id: int) -> None:
+        """
+        Switches the SV04 and waits for the switch to echo the command back.
+
+        Unlike the KVM protocols, this is not fire-and-forget. The SV04's RS232
+        controller can latch up and stop responding entirely while the switch
+        keeps passing USB, and only a power cycle clears it. Without checking
+        the echo the API reports success for every command while nothing moves,
+        which is actively misleading. The echo costs ~40-95ms.
+        """
+        packet = ProtocolHandler.build_sv04_packet(port_id)
+
+        # Hardware safety: bytes sent at the wrong baud arrive as framing
+        # garbage and latch up the switch's RS232 controller, which then stays
+        # silent until the switch is power-cycled. Refuse rather than wedge it.
+        if self.serial_manager.baudrate != SV04Commands.BAUDRATE:
+            raise ValueError(
+                f"SV04 requires {SV04Commands.BAUDRATE} baud but the port is at "
+                f"{self.serial_manager.baudrate}. Refusing to send: traffic at the "
+                "wrong baud rate latches up the switch's RS232 controller and it "
+                "then needs a power cycle."
+            )
+
+        future: Future = Future()
+        with self._query_lock:
+            self._pending_echo = {'frame': packet, 'future': future}
+
+        try:
+            self._send_command_bytes(packet)
+            future.result(timeout=SV04Commands.ECHO_TIMEOUT)
+        except TimeoutError:
+            raise ConnectionError(
+                f"SV04 did not acknowledge the switch to input {port_id}. "
+                "The switch's RS232 controller may have latched up - power-cycle "
+                "the switch. Check the DB9 is seated and no other process holds "
+                "the serial port."
+            )
+        finally:
+            with self._query_lock:
+                if self._pending_echo and self._pending_echo['frame'] == packet:
+                    self._pending_echo = None
 
     def control_buzzer(self, state: Literal["on", "off"]) -> None:
         if state not in ["on", "off"]:
@@ -383,34 +478,6 @@ class ControllerService:
             response = self.serial_manager.read(128)
             self._log_serial_event("RECEIVED", response)
             return response.hex(' ').upper()
-
-    def run_all_queries(self) -> list[dict]:
-        commands = self._get_commands()
-        query_results = []
-        
-        # Use introspection to find queries
-        # For HDC202, we look at CMD_QUERY_...
-        if self.current_protocol == Protocol.HDC202_X24:
-            query_keys = [attr for attr in dir(HDC202X24Commands) if attr.startswith("CMD_QUERY_")]
-            for key in query_keys:
-                query_name = key.replace("CMD_QUERY_", "").lower()
-                try:
-                    response = self.send_query(query_name)
-                    query_results.append({"command": query_name, "response": response, "status": "success"})
-                except Exception as e:
-                    query_results.append({"command": query_name, "response": str(e), "status": "error"})
-        else:
-            # Legacy
-            query_keys = [attr for attr in dir(commands) if attr.startswith("QUERY_")]
-            for key in query_keys:
-                query_name = key.replace("QUERY_", "").lower()
-                try:
-                    response = self.send_query(query_name)
-                    query_results.append({"command": query_name, "response": response, "status": "success"})
-                except Exception as e:
-                     query_results.append({"command": query_name, "response": str(e), "status": "error"})
-                     
-        return query_results
 
     def check_status(self) -> dict:
         is_connected = self.serial_manager.is_connected()

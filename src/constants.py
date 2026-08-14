@@ -7,6 +7,7 @@ class Protocol(str, Enum):
     MATRIX = "matrix"
     DUAL_MONITOR_HEX = "dual_monitor_hex"
     HDC202_X24 = "hdc202_x24"
+    SV04 = "sv04"
 
 class EnterpriseCommands:
     """
@@ -122,7 +123,33 @@ class HDC202X24Commands:
     CMD_QUERY_AUTO_DETECT   = 0x8E
     CMD_QUERY_AUTO_SCAN     = 0x8F
 
-    # Map protocols to their command classes
+class SV04Commands:
+    """
+    SV04 4-Port USB 3.0 Switch (RS232 control).
+
+    Serial settings: 115200 bps, 8 data bits, 1 stop bit, no parity.
+    Format: 0xAA [Input-1] [CS] where all three bytes sum to 0x100.
+
+    This is a USB peripheral switch, not a KVM: it has 4 inputs and no
+    buzzer, EDID, audio, or query support. Only input selection exists.
+
+    Source: vendor command table in .debug/incoming.txt
+    """
+    BAUDRATE = 115200
+    PORT_COUNT = 4
+
+    # The switch echoes each command back verbatim in ~40-95ms. This is
+    # undocumented but reliable, and is the only confirmation the device
+    # offers. 0.5s leaves generous headroom.
+    ECHO_TIMEOUT = 0.5
+
+    SWITCH_PORT_1 = b'\xAA\x00\x56'
+    SWITCH_PORT_2 = b'\xAA\x01\x55'
+    SWITCH_PORT_3 = b'\xAA\x02\x54'
+    SWITCH_PORT_4 = b'\xAA\x03\x53'
+
+
+# Map protocols to their command classes
 PROTOCOL_MAP = {
     Protocol.ENTERPRISE: EnterpriseCommands,
     Protocol.CONSUMER_A: ConsumerACommands,
@@ -130,4 +157,5 @@ PROTOCOL_MAP = {
     Protocol.MATRIX: MatrixCommands,
     Protocol.DUAL_MONITOR_HEX: DualMonitorHexCommands,
     Protocol.HDC202_X24: HDC202X24Commands,
+    Protocol.SV04: SV04Commands,
 }

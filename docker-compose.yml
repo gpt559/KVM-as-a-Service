@@ -1,9 +1,9 @@
-# Quick Command Reference:
-# Build:    docker-compose build
-# Run:      docker-compose up -d
-# Logs:     docker-compose logs -f
-# Stop:     docker-compose down
-# Rebuild:  docker-compose up -d --build
+# Quick Command Reference (Compose v2 syntax; v1 "docker-compose" is not installed):
+# Build:    docker compose build
+# Run:      docker compose up -d
+# Logs:     docker compose logs -f
+# Stop:     docker compose down
+# Rebuild:  docker compose up -d --build
 
 services:
   kvm-service:
@@ -22,7 +22,11 @@ services:
       # Configure the application to use the mapped serial port
       # Set to "AUTO" to automatically find the first available /dev/ttyUSB* or /dev/ttyACM*
       - SERIAL_PORT=AUTO
-      - BAUD_RATE=9600
+      # SV04 USB switch: 115200 only. Sending at any other rate latches up its
+      # RS232 controller until the switch is power-cycled, so this must match
+      # PROTOCOL below. For the TESmart KVMs use BAUD_RATE=9600, PROTOCOL=hdc202_x24.
+      - BAUD_RATE=115200
+      - PROTOCOL=sv04
     restart: always
     logging:
       driver: "json-file"
